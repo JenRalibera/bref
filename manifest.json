@@ -2,13 +2,14 @@
   "manifest_version": 3,
   "name": "Bref",
   "description": "Créez et gérez des notes associées aux sites web, par URL.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "icons": {
     "16": "assets/icons/bref.jpeg",
     "32": "assets/icons/bref.jpeg",
     "48": "assets/icons/bref.jpeg",
     "128": "assets/icons/bref.jpeg"
   },
+  "permissions": ["storage"],
   "action": {
     "default_title": "Bref — Notes du site",
     "default_popup": "popup/popup.html",
