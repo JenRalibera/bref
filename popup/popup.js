@@ -1,128 +1,23 @@
 /*
- * popup.js — activation/désactivation de l'extension depuis la popup.
+ * popup.js — point d'entrée de la popup.
  *
- * La popup ne fait que lire et modifier l'état d'activation persisté
- * (`shared/activation-state.js`) puis refléter cet état :
- *   - case à cocher = contrôle d'activation (AC1, AC2) ;
- *   - message de statut = état visible et annoncé (AC7) ;
- *   - <fieldset> désactivé = actions sur les notes inaccessibles (AC3, AC4).
+ * La popup est composée de deux sections indépendantes, chacune responsable de
+ * son interface et de ses écouteurs :
+ *   - « Activation » (`activation-section.js`) ;
+ *   - « Notes du site » (`notes-section.js`).
  *
- * Aucune logique de notes n'est implémentée ici : les boutons d'action sont
- * fournis par l'interface, leur comportement viendra avec la gestion des notes.
+ * Ce module se contente de les initialiser puis de libérer les écouteurs de la
+ * section d'activation à la fermeture de la popup (règle 11).
  */
 
-import {
-  readActivationEnabled,
-  watchActivationEnabled,
-  writeActivationEnabled,
-} from "../shared/activation-state.js";
+import { initActivationSection } from "./activation-section.js";
+import { initNotesSection } from "./notes-section.js";
 
-const ACTIVATION_STATUS_TEXT = {
-  enabled: "Activée : les actions sur les notes sont accessibles.",
-  disabled: "Désactivée : les actions sur les notes ne sont pas accessibles, vos notes sont conservées.",
-};
+const cleanupActivationSection = initActivationSection();
 
-const ACTIVATION_READ_ERROR_TEXT =
-  "L'état d'activation n'a pas pu être lu : l'extension est traitée comme désactivée.";
+initNotesSection();
 
-const ACTIVATION_SAVE_ERROR_TEXT =
-  "L'état d'activation n'a pas pu être enregistré. Merci de réessayer.";
+window.addEventListener("pagehide", () => {
+  cleanupActivationSection();
+});
 
-function queryElements() {
-  return {
-    toggle: document.getElementById("activation-toggle"),
-    status: document.getElementById("activation-status"),
-    notesActions: document.getElementById("notes-actions"),
-  };
-}
-
-/**
- * Affiche l'état d'activation : contrôle, accès aux actions et message visible.
- *
- * @param {{ toggle: HTMLInputElement, status: HTMLElement, notesActions: HTMLFieldSetElement }} elements
- * @param {boolean} isEnabled
- */
-function renderActivationState(elements, isEnabled) {
-  const state = isEnabled ? "enabled" : "disabled";
-
-  elements.toggle.checked = isEnabled;
-  elements.notesActions.disabled = !isEnabled;
-  setStatusText(elements.status, ACTIVATION_STATUS_TEXT[state], state);
-}
-
-/**
- * @param {HTMLElement} statusElement
- * @param {string} text
- * @param {"enabled" | "disabled" | "error"} state
- */
-function setStatusText(statusElement, text, state) {
-  statusElement.textContent = text;
-  statusElement.dataset.state = state;
-}
-
-/**
- * Relit l'état stocké et l'affiche. En cas d'échec, l'extension est traitée
- * comme désactivée (état le moins permissif) et l'erreur est signalée.
- *
- * @param {{ toggle: HTMLInputElement, status: HTMLElement, notesActions: HTMLFieldSetElement }} elements
- */
-async function refreshActivationState(elements) {
-  try {
-    renderActivationState(elements, await readActivationEnabled());
-  } catch (error) {
-    console.error("Bref : lecture de l'état d'activation impossible.", error);
-    renderActivationState(elements, false);
-    setStatusText(elements.status, ACTIVATION_READ_ERROR_TEXT, "error");
-  }
-}
-
-/**
- * Applique le choix de l'utilisateur. En cas d'échec d'écriture, l'interface
- * revient à l'état réellement stocké et l'erreur est signalée.
- *
- * @param {{ toggle: HTMLInputElement, status: HTMLElement, notesActions: HTMLFieldSetElement }} elements
- * @param {Event} event
- */
-async function handleToggleChange(elements, event) {
-  const requestedState = event.target.checked;
-
-  try {
-    await writeActivationEnabled(requestedState);
-    renderActivationState(elements, requestedState);
-  } catch (error) {
-    console.error("Bref : enregistrement de l'état d'activation impossible.", error);
-    await refreshActivationState(elements);
-    setStatusText(elements.status, ACTIVATION_SAVE_ERROR_TEXT, "error");
-  }
-}
-
-function init() {
-  const elements = queryElements();
-  const missingElementNames = Object.entries(elements)
-    .filter(([, element]) => element === null)
-    .map(([name]) => name);
-
-  if (missingElementNames.length > 0) {
-    console.error(`Bref : popup incomplète, éléments introuvables : ${missingElementNames.join(", ")}.`);
-    return;
-  }
-
-  const onToggleChange = (event) => {
-    void handleToggleChange(elements, event);
-  };
-
-  const unwatchActivation = watchActivationEnabled((isEnabled) => {
-    renderActivationState(elements, isEnabled);
-  });
-
-  elements.toggle.addEventListener("change", onToggleChange);
-
-  window.addEventListener("pagehide", () => {
-    elements.toggle.removeEventListener("change", onToggleChange);
-    unwatchActivation();
-  });
-
-  void refreshActivationState(elements);
-}
-
-init();
