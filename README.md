@@ -21,11 +21,12 @@ J'essaie de créer des extensions pour navigateur aléatoiremet, du coup, si tu 
   - l'état courant est toujours affiché sous la case à cocher.
 - L'état est mémorisé dans `chrome.storage.local` (clé `activationEnabled`) : il survit à la fermeture de la popup et du navigateur. L'extension est activée par défaut.
 - **Consulter les notes** : à l'ouverture, la popup affiche les notes du site de l'onglet actif, et uniquement celles-ci (ou « Aucune note pour ce site. »). Les pages internes du navigateur (`chrome://…`), la boutique d'extensions et les pages non autorisées ne peuvent pas porter de notes : un message l'indique.
+- **Créer une note** : bouton « Créer une note » (accessible seulement quand l'extension est activée) → saisir un texte libre, puis **Enregistrer** ou **Annuler**. Rien n'est créé tant que l'enregistrement n'a pas abouti : annuler, ou fermer la popup, ne laisse aucune note. La note est associée au site de l'onglet actif et apparaît aussitôt dans la liste.
 
 ## Structure
 
 - `manifest.json` — Manifest V3 (service worker en module)
-- `popup/` — interface de la popup (`popup.html`, `popup.css`, `popup.js`, `activation-section.js`, `notes-section.js`, `note-item.js`)
+- `popup/` — interface de la popup (`popup.html`, `popup.css`, `popup.js` et les modules : `activation-section.js`, `notes-section.js`, `notes-view.js`, `note-item.js`, `note-editor.js`, `notes-client.js`, `find-elements.js`)
 - `service-worker/` — service worker, seul lecteur des notes stockées (`service-worker.js`)
 - `shared/` — code partagé entre les contextes (`activation-state.js`, `url.js`, `note.js`, `notes-store.js`, `notes-messages.js`)
 - `assets/icons/` — icônes de l'extension
@@ -48,6 +49,7 @@ J'essaie de créer des extensions pour navigateur aléatoiremet, du coup, si tu 
 
 - Les notes sont conservées dans `chrome.storage.local`, une clé par site : `notes:<URL normalisée>` → tableau de notes.
 - Forme d'une note : `{ id, url, content, createdAt, updatedAt }`.
+- Création : l'identifiant (`crypto.randomUUID()`) et les dates sont produits par le contexte d'arrière-plan ; le texte est enregistré sans ses espaces de bord, dans la limite de 5000 caractères (`MAX_NOTE_LENGTH`).
 - Normalisation d'URL : seules les pages `http`/`https` portent des notes, le fragment (`#…`) est ignoré, la requête (`?…`) est conservée (voir `shared/url.js`).
 - Rien n'est envoyé sur le réseau : les notes restent sur l'appareil.
 

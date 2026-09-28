@@ -6,9 +6,9 @@
  *   - message de statut = état visible et annoncé (AC7) ;
  *   - <fieldset> désactivé = actions sur les notes inaccessibles (AC3, AC4).
  *
- * Les boutons d'action des notes sont une interface seule : ni gestionnaire de
- * clic, ni logique de notes ici. La consultation des notes n'est pas concernée
- * par l'activation : elle reste disponible (section « Notes du site »).
+ * Cette section ne connaît pas les notes : elle ne fait qu'ouvrir ou fermer
+ * l'accès au <fieldset> des actions. Le câblage des boutons d'action et la
+ * consultation des notes appartiennent à la section « Notes du site ».
  */
 
 import {
@@ -16,6 +16,13 @@ import {
   watchActivationEnabled,
   writeActivationEnabled,
 } from "../shared/activation-state.js";
+import { findElements } from "./find-elements.js";
+
+const ELEMENT_IDS = {
+  toggle: "activation-toggle",
+  status: "activation-status",
+  notesActions: "notes-actions",
+};
 
 const ACTIVATION_STATUS_TEXT = {
   enabled: "Activée : les actions sur les notes sont accessibles.",
@@ -27,14 +34,6 @@ const ACTIVATION_READ_ERROR_TEXT =
 
 const ACTIVATION_SAVE_ERROR_TEXT =
   "L'état d'activation n'a pas pu être enregistré. Merci de réessayer.";
-
-function queryElements() {
-  return {
-    toggle: document.getElementById("activation-toggle"),
-    status: document.getElementById("activation-status"),
-    notesActions: document.getElementById("notes-actions"),
-  };
-}
 
 /**
  * Affiche l'état d'activation : contrôle, accès aux actions et message visible.
@@ -103,13 +102,8 @@ async function handleToggleChange(elements, event) {
  *   la popup.
  */
 export function initActivationSection() {
-  const elements = queryElements();
-  const missingElementNames = Object.entries(elements)
-    .filter(([, element]) => element === null)
-    .map(([name]) => name);
-
-  if (missingElementNames.length > 0) {
-    console.error(`Bref : section activation incomplète, éléments introuvables : ${missingElementNames.join(", ")}.`);
+  const elements = findElements("activation", ELEMENT_IDS);
+  if (elements === null) {
     return () => {};
   }
 
