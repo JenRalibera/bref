@@ -54,6 +54,44 @@ export async function readNotesForUrl(normalizedUrl) {
   return sortByCreationDate(validNotes);
 }
 
+/**
+ * Signale que la valeur stockée pour un site n'est pas un tableau de notes.
+ *
+ * L'écriture est alors refusée : remplacer une donnée de forme inconnue
+ * pourrait détruire du contenu existant (règle 09).
+ */
+export class NotesStoreConflictError extends Error {}
+
+/**
+ * Ajoute une note aux notes déjà stockées pour un site.
+ *
+ * Les entrées existantes sont conservées telles quelles, y compris celles qui
+ * ne respectent pas la forme d'une note : elles ne sont jamais réécrites.
+ *
+ * @param {string} normalizedUrl
+ * @param {object} note Note valide (voir `shared/note.js`).
+ * @returns {Promise<void>}
+ * @throws {TypeError} si la note à enregistrer n'est pas valide.
+ * @throws {NotesStoreConflictError} si la valeur stockée n'est pas un tableau.
+ */
+export async function addNoteForUrl(normalizedUrl, note) {
+  if (!isValidNote(note)) {
+    throw new TypeError("addNoteForUrl attend une note valide.");
+  }
+
+  const storageKey = buildNotesStorageKey(normalizedUrl);
+  const stored = await chrome.storage.local.get(storageKey);
+  const storedNotes = stored[storageKey];
+
+  if (storedNotes !== undefined && !Array.isArray(storedNotes)) {
+    throw new NotesStoreConflictError("addNoteForUrl : la valeur stockée n'est pas un tableau de notes.");
+  }
+
+  const notes = Array.isArray(storedNotes) ? storedNotes : [];
+
+  await chrome.storage.local.set({ [storageKey]: [...notes, note] });
+}
+
 function sortByCreationDate(notes) {
   return [...notes].sort((first, second) => first.createdAt.localeCompare(second.createdAt));
 }

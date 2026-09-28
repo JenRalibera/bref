@@ -253,3 +253,73 @@ body {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
+
+/* Éditeur d'une nouvelle note */
+
+.note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+}
+
+/* L'attribut `hidden` doit primer sur les mises en page ci-dessus. */
+.note-editor[hidden],
+.note-editor-error[hidden] {
+  display: none;
+}
+
+.note-editor-title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.note-editor-site {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.note-editor-label {
+  font-size: var(--font-size-sm);
+}
+
+.note-editor-input {
+  width: 100%;
+  min-height: 5rem;
+  padding: var(--space-2);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+.note-editor-error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+}
+
+.note-editor-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Bouton secondaire (annulation) — règles après les styles de base. */
+.notes-action--secondary {
+  color: var(--color-primary);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.notes-action--secondary:hover:not(:disabled) {
+  background-color: var(--color-background);
+}

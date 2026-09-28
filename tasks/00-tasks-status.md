@@ -9,6 +9,7 @@
 | 01 — View extension | `tasks/01-feature-01-view-extension.md` | ✅ Terminé et validé dans Chrome et Firefox |
 | 02 — Activate extension | `tasks/02-feature-01-activate-extension.md` | ✅ Terminé et validé dans Chrome |
 | 03 — View note | `tasks/03-feature-02-view-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
+| 04 — Create note | `tasks/04-feature-02-create-note.md` | 🟡 Implémenté — validation manuelle dans Chrome et Firefox à faire |
 
 ## Feature 01 — View extension
 
@@ -98,9 +99,9 @@
 
 ### Limites connues (à traiter dans une prochaine feature)
 
-- Aucune interface de création / modification / suppression : pour voir des notes, il faut en semer dans `chrome.storage.local` (voir validation ci-dessous).
+- Aucune interface de création / modification / suppression à ce stade : les notes ont été semées dans `chrome.storage.local` pour cette validation (la création arrive avec la feature 04).
 - La popup ne se rafraîchit pas si l'URL change alors qu'elle reste ouverte (navigation SPA) : le site est résolu à l'ouverture.
-- L'état d'activation n'est pas encore vérifié côté service worker : il devra l'être pour les opérations d'écriture (ADR-002, règle 07).
+- L'état d'activation n'est pas vérifié pour la consultation (c'est voulu) ; il l'est désormais pour les opérations d'écriture (feature 04, ADR-005).
 - Une note dont la forme est invalide est ignorée à l'affichage (avec un avertissement en console) ; elle reste dans le stockage.
 - Navigateurs : Chrome ≥ 121 et Firefox ≥ 121 (ADR-004). Firefox ne gérant pas les service workers d'arrière-plan en MV3, le même fichier d'arrière-plan est déclaré en `background.scripts` et démarre une page d'événements ; Chrome ignore `background.scripts`.
 
@@ -144,3 +145,50 @@
   - [x] Le module se charge sans l'erreur `background.service_worker is currently disabled`
   - [x] La popup s'ouvre et affiche les notes du site courant (même comportement que dans Chrome)
   - [x] Console de la page d'événements (`about:debugging` → **Inspecter**) : aucune erreur
+
+## Feature 04 — Create note
+
+### Critères d'acceptation
+
+- [x] AC1 — Accéder à la création : le bouton « Créer une note » ouvre l'éditeur d'une nouvelle note (formulaire « Nouvelle note », focus placé dans le champ)
+- [x] AC2 — Texte libre : `<textarea>` sans contrainte de format (accents, caractères spéciaux, emojis, retours à la ligne conservés), limité à `MAX_NOTE_LENGTH` (5000 caractères)
+- [x] AC3 — Enregistrement : « Enregistrer » envoie `CREATE_NOTE_REQUEST` ; le contexte d'arrière-plan crée la note pour l'URL normalisée du site courant, la liste est rechargée depuis le stockage et « Note enregistrée. » est annoncé
+- [x] AC4 — Annulation implicite : aucune écriture avant la validation du formulaire ; « Annuler » et la fermeture de la popup ne créent rien, et un échec conserve le texte saisi
+- [x] AC5 — Extension désactivée : le bouton et l'éditeur sont dans le `<fieldset disabled>`, et le contexte d'arrière-plan refuse la création (`DISABLED`) même si l'interface est contournée
+
+### Livré
+
+- `manifest.json` — version `0.4.0` (aucune permission supplémentaire : `storage` et `activeTab` suffisent)
+- `shared/note.js` — `MAX_NOTE_LENGTH`, `normalizeNoteContent()` (texte libre, espaces de bord nettoyés), `createNote()` (identifiant `crypto.randomUUID()`, dates ISO)
+- `shared/notes-store.js` — `addNoteForUrl()` (ajout sans réécrire les entrées invalides déjà stockées) et `NotesStoreConflictError`
+- `shared/notes-messages.js` — `CREATE_NOTE_REQUEST` / `CREATE_NOTE_RESULT` et raisons d'échec de création
+- `service-worker/service-worker.js` — routage des demandes connues et `handleCreateNoteRequest()` (validation, état d'activation, création)
+- `popup/note-editor.js` — formulaire d'édition (ouverture / fermeture, focus, erreurs, protection contre le double envoi)
+- `popup/notes-client.js` — résolution de l'onglet actif, envoi des messages et validation des réponses (consultation et création)
+- `popup/notes-section.js` — orchestration : câblage du bouton « Créer une note », enregistrement puis rechargement de la liste depuis le stockage
+- `popup/notes-view.js` — rendu de la section notes (chargement, vide, liste, échec de consultation) et messages d'échec de création
+- `popup/find-elements.js` — résolution partagée des éléments DOM de la popup (utilisée aussi par `activation-section.js`)
+- `popup/popup.html`, `popup/popup.css` — éditeur de note (libellé, `<textarea required>`, erreur `role="alert"` associée par `aria-describedby`, bouton secondaire)
+- `README.md` — utilisation (création), structure, données
+- ADR-005 — protocole de création, verrou d'activation côté arrière-plan, règles de contenu
+
+### Limites connues (à traiter dans une prochaine feature)
+
+- « Modifier une note » et « Supprimer une note » restent des boutons inactifs (interface seule) ; un texte d'aide le signale.
+- L'ajout lit puis réécrit le tableau du site : deux popups enregistrant au même instant pourraient perdre une note (usage local mono-utilisateur).
+- Pas de brouillon : fermer la popup pendant la rédaction perd le texte non enregistré (rien n'est créé, conformément à AC4).
+
+### Validation
+
+- [x] `manifest.json` : JSON valide, version `0.4.0`, permissions inchangées (`storage`, `activeTab`)
+- [x] Syntaxe JavaScript vérifiée (`node --check` en mode module) sur `shared/*.js`, `popup/*.js` et `service-worker/service-worker.js`
+- [x] Cohérence des identifiants HTML ↔ `getElementById` (`create-note`, `note-editor`, `note-editor-site`, `note-content`, `note-editor-error`, `save-note`, `cancel-note`)
+- [x] Taille des fichiers : chaque module reste sous 200 lignes (règle 04)
+- [ ] Validation manuelle dans Chrome et Firefox
+  - [ ] AC1 : extension activée → « Créer une note » ouvre l'éditeur et place le focus dans le champ
+  - [ ] AC2 : saisir un texte avec accents, caractères spéciaux, emoji et retours à la ligne → le texte est conservé tel quel, retours à la ligne compris
+  - [ ] AC3 : « Enregistrer » → « Note enregistrée. » s'affiche et la note apparaît dans la liste ; rouvrir la popup → la note est toujours là
+  - [ ] AC4 : « Annuler » puis vérifier dans la console de la popup (`chrome.storage.local.get(null)`) qu'aucune note n'a été écrite ; laisser un texte sans enregistrer et fermer la popup → aucune note créée
+  - [ ] Champ vide : « Enregistrer » ne crée rien (validation native du navigateur)
+  - [ ] AC5 : désactiver l'extension → boutons et éditeur inaccessibles ; la création est refusée côté arrière-plan (`DISABLED`)
+  - [ ] Console du service worker / de la page d'événements : aucune erreur

@@ -29,12 +29,36 @@
       <fieldset class="notes-actions" id="notes-actions" disabled>
         <legend class="notes-actions-legend">Actions sur les notes</legend>
         <div class="notes-actions-buttons">
-          <button class="notes-action" type="button">Créer une note</button>
+          <button class="notes-action" type="button" id="create-note">Créer une note</button>
           <button class="notes-action" type="button">Modifier une note</button>
           <button class="notes-action" type="button">Supprimer une note</button>
         </div>
+
+        <!--
+          Éditeur d'une nouvelle note : rien n'est enregistré tant que
+          l'utilisateur n'a pas validé « Enregistrer » (AC4).
+        -->
+        <form class="note-editor" id="note-editor" hidden>
+          <h3 class="note-editor-title">Nouvelle note</h3>
+          <p class="note-editor-site" id="note-editor-site"></p>
+          <label class="note-editor-label" for="note-content">Contenu de la note</label>
+          <textarea
+            class="note-editor-input"
+            id="note-content"
+            name="content"
+            rows="4"
+            required
+            aria-describedby="note-editor-error"
+          ></textarea>
+          <p class="note-editor-error" id="note-editor-error" role="alert" hidden></p>
+          <div class="note-editor-buttons">
+            <button class="notes-action" type="submit" id="save-note">Enregistrer</button>
+            <button class="notes-action notes-action--secondary" type="button" id="cancel-note">Annuler</button>
+          </div>
+        </form>
+
         <p class="notes-actions-hint">
-          Ces actions seront reliées aux notes du site une fois la gestion des notes implémentée.
+          Modifier et supprimer une note seront disponibles une fois ces actions implémentées.
         </p>
       </fieldset>
 
