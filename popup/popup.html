@@ -13,6 +13,31 @@
     </header>
 
     <main class="popup-main">
+      <section class="activation" aria-labelledby="activation-title">
+        <h2 class="activation-title" id="activation-title">Activation</h2>
+        <div class="activation-control">
+          <input class="activation-toggle" type="checkbox" id="activation-toggle">
+          <label class="activation-label" for="activation-toggle">Activer l'extension</label>
+        </div>
+        <p class="activation-status" id="activation-status" role="status">État de l'extension en cours de chargement…</p>
+      </section>
+
+      <!--
+        Sécurité par défaut : le groupe est désactivé dans le balisage et n'est
+        activé par le script qu'après lecture d'un état d'activation vrai.
+      -->
+      <fieldset class="notes-actions" id="notes-actions" disabled>
+        <legend class="notes-actions-legend">Actions sur les notes</legend>
+        <div class="notes-actions-buttons">
+          <button class="notes-action" type="button">Créer une note</button>
+          <button class="notes-action" type="button">Modifier une note</button>
+          <button class="notes-action" type="button">Supprimer une note</button>
+        </div>
+        <p class="notes-actions-hint">
+          Ces actions seront reliées aux notes du site une fois la gestion des notes implémentée.
+        </p>
+      </fieldset>
+
       <section class="empty-state" aria-labelledby="empty-state-title">
         <h2 class="empty-state-title" id="empty-state-title">Aucune note pour ce site</h2>
         <p class="empty-state-hint">
@@ -20,5 +45,7 @@
         </p>
       </section>
     </main>
+
+    <script type="module" src="popup.js"></script>
   </body>
 </html>
