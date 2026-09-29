@@ -5,28 +5,30 @@
  * HTML (règle 07). Les retours à la ligne sont conservés par `white-space:
  * pre-wrap` (voir `popup.css`).
  *
- * Chaque note porte son propre bouton « Modifier » (AC1) : la note à modifier
- * est désignée explicitement. Le bouton est créé désactivé et n'est ouvert
- * qu'après lecture d'un état d'activation vrai (AC5, voir `notes-view.js`).
+ * Chaque note porte ses propres boutons « Modifier » et « Supprimer » (AC1 de
+ * la modification, AC1 de la suppression) : la note visée est désignée
+ * explicitement. Les boutons sont créés désactivés et n'ouvrent qu'après
+ * lecture d'un état d'activation vrai (AC5, voir `notes-list.js`).
  */
+
+import { formatNoteExcerpt } from "./note-texts.js";
 
 /** Sélecteur des boutons d'action d'une note, pour les activer d'un bloc. */
 export const NOTE_ACTION_SELECTOR = "[data-note-action]";
 
 const NOTE_ACTION_EDIT = "edit";
+const NOTE_ACTION_DELETE = "delete";
 const NOTE_EDIT_TEXT = "Modifier";
-const NOTE_EDIT_LABEL_PREFIX = "Modifier la note ";
-const NOTE_EDIT_LABEL_MAX_EXCERPT = 40;
+const NOTE_DELETE_TEXT = "Supprimer";
 
 /**
  * @param {object} note Note déjà validée (voir `shared/note.js`).
- * @param {{ canEdit?: boolean, onEdit?: ((note: object, trigger: HTMLButtonElement) => void) | null }} options
- *   `onEdit` reçoit la note et le bouton qui l'a déclenché (ce bouton retrouve
- *   le focus à la fermeture de l'éditeur) ; sans `onEdit`, aucun bouton n'est
- *   ajouté.
+ * @param {{ canEdit?: boolean, onEdit?: ((note: object, trigger: HTMLButtonElement) => void) | null, onDelete?: ((note: object, trigger: HTMLButtonElement) => void) | null }} options
+ *   `onEdit` / `onDelete` reçoivent la note et le bouton qui l'a déclenché ;
+ *   sans callback correspondant, aucun bouton n'est ajouté.
  * @returns {HTMLLIElement} l'élément de liste correspondant à la note.
  */
-export function createNoteItem(note, { canEdit = false, onEdit = null } = {}) {
+export function createNoteItem(note, { canEdit = false, onEdit = null, onDelete = null } = {}) {
   const item = document.createElement("li");
   item.className = "note";
 
@@ -43,44 +45,77 @@ export function createNoteItem(note, { canEdit = false, onEdit = null } = {}) {
   meta.append("Créée le ", time);
   item.append(meta);
 
-  if (onEdit !== null) {
-    item.append(createEditAction(note, canEdit, onEdit));
+  if (onEdit !== null || onDelete !== null) {
+    item.append(createActions(note, { canEdit, onEdit, onDelete }));
   }
 
   return item;
 }
 
 /**
- * Crée la zone d'actions d'une note, avec son bouton « Modifier ».
+ * Crée la zone d'actions d'une note.
  *
- * Avec plusieurs notes, le libellé visible « Modifier » ne suffit pas à
- * distinguer les boutons pour un lecteur d'écran : le nom accessible précise la
- * note visée (règle 10).
+ * Avec plusieurs notes, les libellés visibles « Modifier » et « Supprimer » ne
+ * suffisent pas à distinguer les boutons pour un lecteur d'écran : chaque nom
+ * accessible précise la note visée par un résumé de son contenu (règle 10).
  *
  * @param {object} note
- * @param {boolean} canEdit
- * @param {(note: object, trigger: HTMLButtonElement) => void} onEdit
+ * @param {{ canEdit: boolean, onEdit: ((note: object, trigger: HTMLButtonElement) => void) | null, onDelete: ((note: object, trigger: HTMLButtonElement) => void) | null }} options
  * @returns {HTMLDivElement}
  */
-function createEditAction(note, canEdit, onEdit) {
+function createActions(note, { canEdit, onEdit, onDelete }) {
   const actions = document.createElement("div");
   actions.className = "note-actions";
+  const excerpt = formatNoteExcerpt(note.content);
 
+  if (onEdit !== null) {
+    actions.append(
+      createActionButton({
+        note,
+        canEdit,
+        action: NOTE_ACTION_EDIT,
+        text: NOTE_EDIT_TEXT,
+        label: `Modifier la note « ${excerpt} »`,
+        onClick: onEdit,
+      })
+    );
+  }
+
+  if (onDelete !== null) {
+    actions.append(
+      createActionButton({
+        note,
+        canEdit,
+        action: NOTE_ACTION_DELETE,
+        text: NOTE_DELETE_TEXT,
+        label: `Supprimer la note « ${excerpt} »`,
+        onClick: onDelete,
+      })
+    );
+  }
+
+  return actions;
+}
+
+/**
+ * @param {{ note: object, canEdit: boolean, action: string, text: string, label: string, onClick: (note: object, trigger: HTMLButtonElement) => void }} options
+ * @returns {HTMLButtonElement} bouton portant la note visée (`data-note-id`),
+ *   désactivé tant que l'extension est désactivée (AC5).
+ */
+function createActionButton({ note, canEdit, action, text, label, onClick }) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "notes-action notes-action--secondary";
-  button.dataset.noteAction = NOTE_ACTION_EDIT;
+  button.dataset.noteAction = action;
   button.dataset.noteId = note.id;
   button.disabled = !canEdit;
-  button.textContent = NOTE_EDIT_TEXT;
-  button.setAttribute("aria-label", `${NOTE_EDIT_LABEL_PREFIX}« ${buildExcerpt(note.content)} »`);
+  button.textContent = text;
+  button.setAttribute("aria-label", label);
   button.addEventListener("click", () => {
-    onEdit(note, button);
+    onClick(note, button);
   });
 
-  actions.append(button);
-
-  return actions;
+  return button;
 }
 
 /**
@@ -97,19 +132,11 @@ function createEditAction(note, canEdit, onEdit) {
  */
 export function focusNoteEditAction(list, noteId) {
   for (const action of list.querySelectorAll(NOTE_ACTION_SELECTOR)) {
-    if (action.dataset.noteId === noteId) {
+    if (action.dataset.noteId === noteId && action.dataset.noteAction === NOTE_ACTION_EDIT) {
       action.focus();
       return;
     }
   }
-}
-
-function buildExcerpt(content) {
-  const collapsed = content.replace(/\s+/g, " ").trim();
-
-  return collapsed.length > NOTE_EDIT_LABEL_MAX_EXCERPT
-    ? `${collapsed.slice(0, NOTE_EDIT_LABEL_MAX_EXCERPT)}…`
-    : collapsed;
 }
 
 function formatDate(isoDate) {

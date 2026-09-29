@@ -12,27 +12,24 @@
 import {
   MESSAGE_TYPE,
   NOTES_CREATE_FAILURE,
+  NOTES_DELETE_FAILURE,
   NOTES_EDIT_FAILURE,
   NOTES_VIEW_FAILURE,
 } from "../shared/notes-messages.js";
 
-/** Raisons d'échec d'une consultation : envoi ou lecture impossible, page non supportée. */
-const VIEW_FAILURES = {
-  failed: NOTES_VIEW_FAILURE.READ_FAILED,
-  unsupportedPage: NOTES_VIEW_FAILURE.UNSUPPORTED_PAGE,
+/**
+ * Raisons d'échec selon la demande envoyée : échec général (envoi, lecture ou
+ * écriture impossible) puis page non supportée.
+ */
+const REQUEST_FAILURES = {
+  [MESSAGE_TYPE.VIEW_NOTES_REQUEST]: { failed: NOTES_VIEW_FAILURE.READ_FAILED, unsupportedPage: NOTES_VIEW_FAILURE.UNSUPPORTED_PAGE },
+  [MESSAGE_TYPE.CREATE_NOTE_REQUEST]: { failed: NOTES_CREATE_FAILURE.WRITE_FAILED, unsupportedPage: NOTES_CREATE_FAILURE.UNSUPPORTED_PAGE },
+  [MESSAGE_TYPE.UPDATE_NOTE_REQUEST]: { failed: NOTES_EDIT_FAILURE.WRITE_FAILED, unsupportedPage: NOTES_EDIT_FAILURE.UNSUPPORTED_PAGE },
+  [MESSAGE_TYPE.DELETE_NOTE_REQUEST]: { failed: NOTES_DELETE_FAILURE.WRITE_FAILED, unsupportedPage: NOTES_DELETE_FAILURE.UNSUPPORTED_PAGE },
 };
 
-/** Raisons d'échec d'une création. */
-const CREATE_FAILURES = {
-  failed: NOTES_CREATE_FAILURE.WRITE_FAILED,
-  unsupportedPage: NOTES_CREATE_FAILURE.UNSUPPORTED_PAGE,
-};
-
-/** Raisons d'échec d'une modification. */
-const EDIT_FAILURES = {
-  failed: NOTES_EDIT_FAILURE.WRITE_FAILED,
-  unsupportedPage: NOTES_EDIT_FAILURE.UNSUPPORTED_PAGE,
-};
+/** Raison renvoyée si une demande inconnue atteint ce module. */
+const UNKNOWN_REQUEST_REASON = "UNKNOWN_REQUEST";
 
 /**
  * Lit l'URL de l'onglet actif.
@@ -53,11 +50,15 @@ async function readActiveTabUrl() {
  * Envoie une demande concernant le site de l'onglet actif.
  *
  * @param {object} request Demande à compléter avec l'URL de l'onglet actif.
- * @param {{ failed: string, unsupportedPage: string }} failures Raisons à
- *   renvoyer selon l'échec.
  * @returns {Promise<{ ok: true, response: unknown } | { ok: false, reason: string }>}
  */
-async function sendRequestForActiveTab(request, failures) {
+async function sendRequestForActiveTab(request) {
+  const failures = REQUEST_FAILURES[request.type];
+  if (failures === undefined) {
+    console.error(`Bref : type de demande inconnu « ${request.type} ».`);
+    return { ok: false, reason: UNKNOWN_REQUEST_REASON };
+  }
+
   let tabUrl;
   try {
     tabUrl = await readActiveTabUrl();
@@ -116,14 +117,14 @@ function isWriteNoteResult(response, expectedType) {
  * @returns {Promise<{ ok: true, siteUrl: string, notes: object[] } | { ok: false, reason: string }>}
  */
 export async function requestNotesForActiveTab() {
-  const sent = await sendRequestForActiveTab({ type: MESSAGE_TYPE.VIEW_NOTES_REQUEST }, VIEW_FAILURES);
+  const sent = await sendRequestForActiveTab({ type: MESSAGE_TYPE.VIEW_NOTES_REQUEST });
   if (!sent.ok) {
     return sent;
   }
 
   if (!isViewNotesResult(sent.response)) {
     console.error("Bref : réponse inattendue du contexte d'arrière-plan pour la consultation des notes.");
-    return { ok: false, reason: VIEW_FAILURES.failed };
+    return { ok: false, reason: REQUEST_FAILURES[MESSAGE_TYPE.VIEW_NOTES_REQUEST].failed };
   }
 
   const result = sent.response;
@@ -139,18 +140,17 @@ export async function requestNotesForActiveTab() {
  *
  * @param {object} request Demande sans URL (ajoutée au moment de l'envoi).
  * @param {string} expectedType Type de résultat attendu.
- * @param {{ failed: string, unsupportedPage: string }} failures
  * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
  */
-async function writeNoteForActiveTab(request, expectedType, failures) {
-  const sent = await sendRequestForActiveTab(request, failures);
+async function writeNoteForActiveTab(request, expectedType) {
+  const sent = await sendRequestForActiveTab(request);
   if (!sent.ok) {
     return sent;
   }
 
   if (!isWriteNoteResult(sent.response, expectedType)) {
     console.error("Bref : réponse inattendue du contexte d'arrière-plan pour une écriture de note.");
-    return { ok: false, reason: failures.failed };
+    return { ok: false, reason: REQUEST_FAILURES[request.type]?.failed ?? UNKNOWN_REQUEST_REASON };
   }
 
   return sent.response.ok ? { ok: true } : { ok: false, reason: sent.response.reason };
@@ -163,11 +163,7 @@ async function writeNoteForActiveTab(request, expectedType, failures) {
  * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
  */
 export async function createNoteForActiveTab(content) {
-  return writeNoteForActiveTab(
-    { type: MESSAGE_TYPE.CREATE_NOTE_REQUEST, content },
-    MESSAGE_TYPE.CREATE_NOTE_RESULT,
-    CREATE_FAILURES
-  );
+  return writeNoteForActiveTab({ type: MESSAGE_TYPE.CREATE_NOTE_REQUEST, content }, MESSAGE_TYPE.CREATE_NOTE_RESULT);
 }
 
 /**
@@ -180,7 +176,19 @@ export async function createNoteForActiveTab(content) {
 export async function updateNoteForActiveTab(noteId, content) {
   return writeNoteForActiveTab(
     { type: MESSAGE_TYPE.UPDATE_NOTE_REQUEST, id: noteId, content },
-    MESSAGE_TYPE.UPDATE_NOTE_RESULT,
-    EDIT_FAILURES
+    MESSAGE_TYPE.UPDATE_NOTE_RESULT
+  );
+}
+
+/**
+ * Supprime une note existante du site de l'onglet actif.
+ *
+ * @param {string} noteId Identifiant de la note à supprimer.
+ * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
+ */
+export async function deleteNoteForActiveTab(noteId) {
+  return writeNoteForActiveTab(
+    { type: MESSAGE_TYPE.DELETE_NOTE_REQUEST, id: noteId },
+    MESSAGE_TYPE.DELETE_NOTE_RESULT
   );
 }

@@ -11,6 +11,7 @@
 | 03 — View note | `tasks/03-feature-02-view-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
 | 04 — Create note | `tasks/04-feature-02-create-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
 | 05 — Edit note | `tasks/05-feature-02-edit-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
+| 06 — Remove note | `tasks/06-feature-02-remove-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
 
 ## Feature 01 — View extension
 
@@ -248,4 +249,67 @@
   - [x] AC5 : désactiver l'extension → les boutons « Modifier » sont grisés et non focusables, l'éditeur est inaccessible ; la modification est refusée côté arrière-plan (`DISABLED`)
   - [x] Note supprimée du stockage avant l'enregistrement → « Cette note n'existe plus… » s'affiche et le texte saisi est conservé
   - [x] Console du service worker / de la page d'événements : aucune erreur
+
+## Feature 06 — Remove note
+
+### Critères d'acceptation
+
+- [x] AC1 — Demande de suppression : le bouton « Supprimer » d'une note ouvre une boîte de confirmation qui rappelle le contenu de la note concernée
+- [x] AC2 — Annulation : « Annuler » (ou Échap) ferme la boîte sans rien écrire ; la note est conservée
+- [x] AC3 — Confirmation : « Supprimer » dans la boîte → `DELETE_NOTE_REQUEST` → la note est retirée du stockage, la liste est relue et « Note supprimée. » s'affiche
+- [x] AC4 — Dernière note du site : la clé `notes:<URL>` est supprimée de `chrome.storage.local` (pas de vue globale à ce jour : l'état vide « Aucune note pour ce site. » reste affichable)
+- [x] AC5 — Extension désactivée : les boutons « Supprimer » sont désactivés (état d'activation lu à l'ouverture de la popup et suivi du changement) **et** l'écriture est refusée par l'arrière-plan (`DISABLED`)
+
+### Livré
+
+- `popup/delete-confirm.js` — boîte de confirmation `<dialog>` native (résumé du contenu, messages d'échec, Échap bloqué pendant l'envoi, focus géré par l'élément natif)
+- `popup/note-item.js` — bouton « Supprimer » par note, nom accessible précisant la note (résumé via `formatNoteExcerpt`), callback `onDelete`
+- `popup/note-texts.js` — textes d'échec (enregistrement + suppression) et résumé de note partagés par la vue et le client
+- `popup/notes-list.js` — cycle lecture/écriture de la liste (charger, enregistrer, supprimer, restauration du focus)
+- `popup/notes-section.js` — réduit au câblage (éditeur, boîte de confirmation, suivi de l'activation)
+- `popup/notes-client.js` — `deleteNoteForActiveTab` + table unique `REQUEST_FAILURES` indexée par type de message
+- `popup/notes-view.js` — rendu avec `onDelete` et message explicite sur un site devenu vide
+- `popup/popup.html` — `<dialog id="delete-confirm">` hors du `<fieldset disabled>`, bouton global « Supprimer une note » retiré, texte d'aide mis à jour
+- `popup/popup.css` — variante `--danger`, styles `.delete-confirm*`, jeton `--color-danger-strong`
+- `shared/notes-messages.js` — `DELETE_NOTE_REQUEST` / `DELETE_NOTE_RESULT`, `NOTES_DELETE_FAILURE`
+- `shared/notes-store.js` — `removeNoteForUrl` (retrait ciblé, clé retirée à la dernière note, erreurs `NotesStoreConflictError` / `NotesStoreNoteNotFoundError`)
+- `service-worker/note-write-pipeline.js` — chemin d'écriture commun (URL normalisée → activation revérifiée → écriture → traduction des échecs)
+- `service-worker/note-requests.js` — `handleDeleteNoteRequest` + table `WRITE_OPERATIONS` (création, modification, suppression)
+- `service-worker/service-worker.js` — routage de `DELETE_NOTE_REQUEST`
+- `manifest.json` — version `0.6.0`, permissions inchangées
+- ADR-007 — suppression de note (boîte de confirmation, chemin d'écriture partagé) dans `.clinerules/21-architecture-decision-records.md`
+- `README.md` — utilisation, structure et section Données mises à jour
+
+### Limites connues
+
+- La lecture-modification-écriture du tableau du site n'est pas atomique (limite identique aux features 04/05) : deux confirmations simultanées pourraient perdre une note (usage local mono-utilisateur).
+- Si la note a été supprimée entre son affichage et la confirmation, la boîte affiche « Cette note n'existe plus… » ; la liste n'est pas rechargée sous la boîte ouverte : fermer et rouvrir la popup.
+- La liste n'est pas observée en direct (`chrome.storage.onChanged` n'est branché que sur l'état d'activation) : une modification faite par une autre popup pendant que la popup reste ouverte n'apparaîtra qu'au prochain cycle d'écriture ou à la réouverture.
+- `toSpliced` nécessite Chrome ≥ 110 / Firefox ≥ 116 : compatible avec les minimums ADR-004 (121), mais à revoir si un minimum plus ancien est visé un jour.
+
+### Validation
+
+- [x] `manifest.json` : JSON valide, version `0.6.0`, permissions inchangées (`storage`, `activeTab`), ressources référencées présentes
+- [x] Syntaxe JavaScript vérifiée (`node --check` en mode module) sur `shared/*.js`, `popup/*.js` et `service-worker/*.js`
+- [x] Cohérence des identifiants HTML ↔ `getElementById` (nouveaux : `delete-confirm`, `delete-confirm-form`, `delete-confirm-message`, `delete-confirm-error`, `delete-confirm-accept`, `delete-confirm-cancel`)
+- [x] Taille des fichiers : chaque module reste ≤ 200 lignes (maximum : `popup/notes-client.js`, 194 lignes)
+- [x] Harnais Node (27 vérifications, `chrome.*` et DOM simulés, vrais modules du dépôt) :
+  - `removeNoteForUrl` : retrait ciblé, préservation des autres entrées (invalides comprises), clé retirée à la dernière note, refus `STORE_CONFLICT` / `NOTE_NOT_FOUND`
+  - arrière-plan : refus `INVALID_REQUEST` / `UNSUPPORTED_PAGE` / `DISABLED` (sans écriture), succès sans toucher aux autres notes
+  - textes : résumé de note (espaces réduits, troncature), messages de suppression et d'enregistrement inchangés
+  - `deleteNoteForActiveTab` : succès, `DISABLED`, onglet sans URL (refus locale, sans envoi), URL interne refusée par l'arrière-plan
+  - boutons de note : « Supprimer » créé désactivé puis activé selon l'état d'activation, nom accessible précisant la note, clic transmettant la note et son bouton
+  - boîte de confirmation : ouverture avec le contenu (AC1), confirmation déléguée une seule fois, échec affiché avec réactivation du bouton, annulation sans écriture (AC2)
+  - `notesList.removeNote` : fermeture + stockage vidé + message + focus « Créer une note » après la dernière note (AC3/AC4) ; erreur affichée dans la boîte ouverte et stockage inchangé en cas d'échec
+- [x] Relecture du diff : aucune modification hors périmètre (éditeur, activation et consultation inchangés)
+- [x] Validation manuelle dans Chrome et Firefox (règle 06) :
+  - [x] AC1 : « Supprimer » ouvre la boîte rappelant le contenu de la note, le focus entre dans la boîte
+  - [x] AC2 : « Annuler » puis « Échap » → la note est toujours là (console de la popup : `chrome.storage.local.get(null)`)
+  - [x] AC3 : « Supprimer » dans la boîte → « Note supprimée. », note absente de la liste et du stockage ; rouvrir la popup → toujours absente
+  - [x] AC4 : supprimer la dernière note du site → la clé `notes:<URL>` a disparu ; l'état vide s'affiche
+  - [x] AC5 : extension désactivée → boutons « Supprimer » grisés et non focusables ; depuis la console du service worker, envoyer un `DELETE_NOTE_REQUEST` → refus `DISABLED`, stockage inchangé
+  - [x] Échec affiché : retirer la note (via la console) pendant que la boîte est ouverte, puis confirmer → boîte ouverte avec message, bouton réutilisable, aucune écriture
+  - [x] Focus : après confirmation, le focus retombe sur « Créer une note » ; Échap pendant l'envoi n'interrompt pas la suppression
+  - [x] Console du service worker / de la page d'événements : aucune erreur
+
 

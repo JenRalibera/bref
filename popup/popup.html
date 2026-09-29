@@ -30,7 +30,6 @@
         <legend class="notes-actions-legend">Actions sur les notes</legend>
         <div class="notes-actions-buttons">
           <button class="notes-action" type="button" id="create-note">Créer une note</button>
-          <button class="notes-action" type="button">Supprimer une note</button>
         </div>
 
         <!--
@@ -58,8 +57,8 @@
         </form>
 
         <p class="notes-actions-hint">
-          Modifier une note : bouton « Modifier » sur la note concernée. Supprimer une note sera
-          disponible une fois cette action implémentée.
+          Créer une note pour ce site, ou modifier / supprimer une note : boutons « Modifier » et
+          « Supprimer » sur la note concernée dans la liste.
         </p>
       </fieldset>
 
@@ -70,6 +69,24 @@
         <ul class="notes-list" id="notes-list" hidden></ul>
       </section>
     </main>
+
+    <!--
+      Confirmation de suppression : une note ne disparaît qu'après validation
+      explicite de cette boîte (règle 09). Le <dialog> natif gère le piégeage
+      du focus et la fermeture par Échap (règle 10) ; il est placé hors du
+      <fieldset> désactivé pour que ses boutons restent utilisables.
+    -->
+    <dialog class="delete-confirm" id="delete-confirm" aria-labelledby="delete-confirm-title">
+      <form class="delete-confirm-form" id="delete-confirm-form">
+        <h3 class="delete-confirm-title" id="delete-confirm-title">Supprimer la note ?</h3>
+        <p class="delete-confirm-message" id="delete-confirm-message"></p>
+        <p class="delete-confirm-error" id="delete-confirm-error" role="alert" hidden></p>
+        <div class="delete-confirm-buttons">
+          <button class="notes-action notes-action--danger" type="submit" id="delete-confirm-accept">Supprimer</button>
+          <button class="notes-action notes-action--secondary" type="button" id="delete-confirm-cancel" autofocus>Annuler</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="popup.js"></script>
   </body>

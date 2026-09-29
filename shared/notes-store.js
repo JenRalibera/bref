@@ -63,10 +63,11 @@ export async function readNotesForUrl(normalizedUrl) {
 export class NotesStoreConflictError extends Error {}
 
 /**
- * Signale que la note visée par une modification n'existe plus dans le site.
+ * Signale que la note visée par une modification ou une suppression n'existe
+ * plus dans le site.
  *
- * Elle a pu être supprimée entre son affichage dans la popup et
- * l'enregistrement de la modification.
+ * Elle a pu être supprimée entre son affichage dans la popup et l'opération
+ * demandée.
  */
 export class NotesStoreNoteNotFoundError extends Error {}
 
@@ -135,6 +136,47 @@ export async function updateNoteForUrl(normalizedUrl, noteId, content) {
   updatedNotes[noteIndex] = updateNoteContent(notes[noteIndex], content);
 
   await chrome.storage.local.set({ [storageKey]: updatedNotes });
+}
+
+/**
+ * Supprime une note d'un site.
+ *
+ * Seule la note visée disparaît : les autres entrées du site sont conservées
+ * telles quelles, y compris celles qui ne respectent pas la forme d'une note
+ * (règle 09). Quand la note supprimée était la dernière du site, la clé de
+ * stockage est retirée : un site sans note n'existe pas, la vue globale des
+ * sites reste donc exacte (AC4).
+ *
+ * @param {string} normalizedUrl
+ * @param {string} noteId Identifiant de la note à supprimer.
+ * @returns {Promise<void>}
+ * @throws {NotesStoreConflictError} si la valeur stockée n'est pas un tableau.
+ * @throws {NotesStoreNoteNotFoundError} si aucune note du site ne porte cet
+ *   identifiant.
+ */
+export async function removeNoteForUrl(normalizedUrl, noteId) {
+  const storageKey = buildNotesStorageKey(normalizedUrl);
+  const stored = await chrome.storage.local.get(storageKey);
+  const storedNotes = stored[storageKey];
+
+  if (storedNotes !== undefined && !Array.isArray(storedNotes)) {
+    throw new NotesStoreConflictError("removeNoteForUrl : la valeur stockée n'est pas un tableau de notes.");
+  }
+
+  const notes = Array.isArray(storedNotes) ? storedNotes : [];
+  const noteIndex = notes.findIndex((note) => isValidNote(note) && note.id === noteId);
+
+  if (noteIndex === -1) {
+    throw new NotesStoreNoteNotFoundError("removeNoteForUrl : aucune note ne porte cet identifiant.");
+  }
+
+  const remainingNotes = notes.toSpliced(noteIndex, 1);
+  if (remainingNotes.length === 0) {
+    await chrome.storage.local.remove(storageKey);
+    return;
+  }
+
+  await chrome.storage.local.set({ [storageKey]: remainingNotes });
 }
 
 function sortByCreationDate(notes) {
