@@ -9,7 +9,7 @@
  * des notes, elle passe par un message (règle 06).
  */
 
-import { isValidNote } from "./note.js";
+import { isValidNote, updateNoteContent } from "./note.js";
 
 export const NOTES_STORAGE_KEY_PREFIX = "notes:";
 
@@ -63,6 +63,14 @@ export async function readNotesForUrl(normalizedUrl) {
 export class NotesStoreConflictError extends Error {}
 
 /**
+ * Signale que la note visée par une modification n'existe plus dans le site.
+ *
+ * Elle a pu être supprimée entre son affichage dans la popup et
+ * l'enregistrement de la modification.
+ */
+export class NotesStoreNoteNotFoundError extends Error {}
+
+/**
  * Ajoute une note aux notes déjà stockées pour un site.
  *
  * Les entrées existantes sont conservées telles quelles, y compris celles qui
@@ -90,6 +98,43 @@ export async function addNoteForUrl(normalizedUrl, note) {
   const notes = Array.isArray(storedNotes) ? storedNotes : [];
 
   await chrome.storage.local.set({ [storageKey]: [...notes, note] });
+}
+
+/**
+ * Remplace le contenu d'une note existante d'un site.
+ *
+ * Seule la note visée est réécrite, à sa position d'origine : les autres
+ * entrées du site sont conservées telles quelles, y compris celles qui ne
+ * respectent pas la forme d'une note (règle 09).
+ *
+ * @param {string} normalizedUrl
+ * @param {string} noteId Identifiant de la note à modifier.
+ * @param {string} content Nouveau contenu déjà validé (voir `normalizeNoteContent`).
+ * @returns {Promise<void>}
+ * @throws {NotesStoreConflictError} si la valeur stockée n'est pas un tableau.
+ * @throws {NotesStoreNoteNotFoundError} si aucune note du site ne porte cet
+ *   identifiant.
+ */
+export async function updateNoteForUrl(normalizedUrl, noteId, content) {
+  const storageKey = buildNotesStorageKey(normalizedUrl);
+  const stored = await chrome.storage.local.get(storageKey);
+  const storedNotes = stored[storageKey];
+
+  if (storedNotes !== undefined && !Array.isArray(storedNotes)) {
+    throw new NotesStoreConflictError("updateNoteForUrl : la valeur stockée n'est pas un tableau de notes.");
+  }
+
+  const notes = Array.isArray(storedNotes) ? storedNotes : [];
+  const noteIndex = notes.findIndex((note) => isValidNote(note) && note.id === noteId);
+
+  if (noteIndex === -1) {
+    throw new NotesStoreNoteNotFoundError("updateNoteForUrl : aucune note ne porte cet identifiant.");
+  }
+
+  const updatedNotes = [...notes];
+  updatedNotes[noteIndex] = updateNoteContent(notes[noteIndex], content);
+
+  await chrome.storage.local.set({ [storageKey]: updatedNotes });
 }
 
 function sortByCreationDate(notes) {

@@ -1,9 +1,13 @@
 /*
- * note-editor.js — éditeur d'une nouvelle note dans la popup.
+ * note-editor.js — éditeur de note de la popup.
  *
+ * Le même formulaire sert à créer une note et à modifier une note existante :
+ * la création part d'un champ vide, la modification d'un contenu pré-rempli.
  * L'éditeur présente le formulaire et rend compte du résultat ; il ne connaît
- * ni le stockage ni la messagerie. Tant que l'enregistrement n'a pas réussi,
- * rien n'est créé (AC4) et le texte saisi est conservé (règle 09).
+ * ni le stockage ni la messagerie.
+ *
+ * Tant que l'enregistrement n'a pas réussi, rien n'est écrit (AC4) et le texte
+ * saisi est conservé (règle 09).
  *
  * Le formulaire est placé dans le <fieldset> des actions sur les notes : quand
  * l'extension est désactivée, ses contrôles sont désactivés par le navigateur,
@@ -13,11 +17,28 @@
 import { MAX_NOTE_LENGTH } from "../shared/note.js";
 import { findElements } from "./find-elements.js";
 
-const NOTE_EDITOR_SITE_PREFIX = "Note pour ";
-const NOTE_EDITOR_SITE_UNKNOWN_TEXT = "La note sera associée au site courant.";
+/** Modes de l'éditeur : une nouvelle note, ou une note existante à modifier. */
+const NOTE_EDITOR_MODE = {
+  CREATE: "create",
+  EDIT: "edit",
+};
+
+const NOTE_EDITOR_TEXTS = {
+  [NOTE_EDITOR_MODE.CREATE]: {
+    title: "Nouvelle note",
+    sitePrefix: "Note pour ",
+    unknownSite: "La note sera associée au site courant.",
+  },
+  [NOTE_EDITOR_MODE.EDIT]: {
+    title: "Modifier la note",
+    sitePrefix: "Modifier la note de ",
+    unknownSite: "La note sera modifiée pour le site courant.",
+  },
+};
 
 const ELEMENT_IDS = {
   form: "note-editor",
+  title: "note-editor-title",
   site: "note-editor-site",
   input: "note-content",
   error: "note-editor-error",
@@ -28,13 +49,13 @@ const ELEMENT_IDS = {
 /**
  * Crée l'éditeur de note.
  *
- * @param {{ trigger: HTMLButtonElement, onSubmit: (content: string, editor: object) => Promise<void> }} options
- *   `trigger` reçoit le focus à la fermeture ; `onSubmit` reçoit le texte saisi
- *   et le contrôleur de l'éditeur (pour afficher une erreur ou le fermer).
- * @returns {{ open: (siteHost: string | null) => void, close: () => void, showError: (message: string) => void } | null}
+ * @param {{ onSubmit: (draft: { noteId: string | null, content: string }, editor: object) => Promise<void> }} options
+ *   `onSubmit` reçoit le brouillon — `noteId` vaut `null` pour une création — et
+ *   le contrôleur de l'éditeur (pour afficher une erreur ou le fermer).
+ * @returns {{ openCreate: (options: object) => void, openEdit: (options: object) => void, close: () => void, showError: (message: string) => void } | null}
  *   `null` si la popup est incomplète.
  */
-export function createNoteEditor({ trigger, onSubmit }) {
+export function createNoteEditor({ onSubmit }) {
   const elements = findElements("éditeur de note", ELEMENT_IDS);
   if (elements === null) {
     return null;
@@ -44,19 +65,49 @@ export function createNoteEditor({ trigger, onSubmit }) {
 
   let isSaving = false;
 
-  const editor = { open, close, showError };
+  /** Note en cours de modification, `null` pour une création. */
+  let editedNoteId = null;
 
-  function open(siteHost) {
-    elements.site.textContent =
-      siteHost === null ? NOTE_EDITOR_SITE_UNKNOWN_TEXT : `${NOTE_EDITOR_SITE_PREFIX}${siteHost}`;
+  /** Élément à refocaliser à la fermeture (règle 10). */
+  let trigger = null;
+
+  const editor = { openCreate, openEdit, close, showError };
+
+  /**
+   * Ouvre l'éditeur sur une nouvelle note.
+   *
+   * @param {{ siteHost: string | null, trigger: HTMLButtonElement }} options
+   */
+  function openCreate({ siteHost, trigger: createTrigger }) {
+    show({ mode: NOTE_EDITOR_MODE.CREATE, siteHost, content: "", noteId: null, trigger: createTrigger });
+  }
+
+  /**
+   * Ouvre l'éditeur sur une note existante.
+   *
+   * @param {{ note: object, siteHost: string | null, trigger: HTMLButtonElement }} options
+   */
+  function openEdit({ note, siteHost, trigger: editTrigger }) {
+    show({ mode: NOTE_EDITOR_MODE.EDIT, siteHost, content: note.content, noteId: note.id, trigger: editTrigger });
+  }
+
+  function show({ mode, siteHost, content, noteId, trigger: openingTrigger }) {
+    const texts = NOTE_EDITOR_TEXTS[mode];
+    const isAnotherTarget = elements.form.hidden || editedNoteId !== noteId;
+
+    editedNoteId = noteId;
+    trigger = openingTrigger;
+    elements.title.textContent = texts.title;
+    elements.site.textContent = siteHost === null ? texts.unknownSite : `${texts.sitePrefix}${siteHost}`;
     hideError();
 
-    // Rouvrir l'éditeur ne doit jamais effacer un texte non enregistré (règle 09).
-    if (elements.form.hidden) {
-      elements.input.value = "";
-      elements.form.hidden = false;
+    // Rouvrir le même formulaire ne doit jamais effacer un texte non enregistré
+    // (règle 09) ; viser une autre note affiche le contenu de celle-ci.
+    if (isAnotherTarget) {
+      elements.input.value = content;
     }
 
+    elements.form.hidden = false;
     elements.input.focus();
   }
 
@@ -64,7 +115,13 @@ export function createNoteEditor({ trigger, onSubmit }) {
     elements.form.hidden = true;
     elements.input.value = "";
     hideError();
-    trigger.focus();
+
+    editedNoteId = null;
+
+    if (trigger !== null) {
+      trigger.focus();
+      trigger = null;
+    }
   }
 
   function showError(message) {
@@ -87,8 +144,10 @@ export function createNoteEditor({ trigger, onSubmit }) {
     isSaving = true;
     elements.saveButton.disabled = true;
 
+    const draft = { noteId: editedNoteId, content: elements.input.value };
+
     try {
-      await onSubmit(elements.input.value, editor);
+      await onSubmit(draft, editor);
     } finally {
       isSaving = false;
       elements.saveButton.disabled = false;

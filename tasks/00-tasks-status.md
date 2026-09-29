@@ -9,7 +9,8 @@
 | 01 — View extension | `tasks/01-feature-01-view-extension.md` | ✅ Terminé et validé dans Chrome et Firefox |
 | 02 — Activate extension | `tasks/02-feature-01-activate-extension.md` | ✅ Terminé et validé dans Chrome |
 | 03 — View note | `tasks/03-feature-02-view-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
-| 04 — Create note | `tasks/04-feature-02-create-note.md` | 🟡 Implémenté — validation manuelle dans Chrome et Firefox à faire |
+| 04 — Create note | `tasks/04-feature-02-create-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
+| 05 — Edit note | `tasks/05-feature-02-edit-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
 
 ## Feature 01 — View extension
 
@@ -184,11 +185,67 @@
 - [x] Syntaxe JavaScript vérifiée (`node --check` en mode module) sur `shared/*.js`, `popup/*.js` et `service-worker/service-worker.js`
 - [x] Cohérence des identifiants HTML ↔ `getElementById` (`create-note`, `note-editor`, `note-editor-site`, `note-content`, `note-editor-error`, `save-note`, `cancel-note`)
 - [x] Taille des fichiers : chaque module reste sous 200 lignes (règle 04)
-- [ ] Validation manuelle dans Chrome et Firefox
-  - [ ] AC1 : extension activée → « Créer une note » ouvre l'éditeur et place le focus dans le champ
-  - [ ] AC2 : saisir un texte avec accents, caractères spéciaux, emoji et retours à la ligne → le texte est conservé tel quel, retours à la ligne compris
-  - [ ] AC3 : « Enregistrer » → « Note enregistrée. » s'affiche et la note apparaît dans la liste ; rouvrir la popup → la note est toujours là
-  - [ ] AC4 : « Annuler » puis vérifier dans la console de la popup (`chrome.storage.local.get(null)`) qu'aucune note n'a été écrite ; laisser un texte sans enregistrer et fermer la popup → aucune note créée
-  - [ ] Champ vide : « Enregistrer » ne crée rien (validation native du navigateur)
-  - [ ] AC5 : désactiver l'extension → boutons et éditeur inaccessibles ; la création est refusée côté arrière-plan (`DISABLED`)
-  - [ ] Console du service worker / de la page d'événements : aucune erreur
+- [x] Validation manuelle dans Chrome et Firefox
+  - [x] AC1 : extension activée → « Créer une note » ouvre l'éditeur et place le focus dans le champ
+  - [x] AC2 : saisir un texte avec accents, caractères spéciaux, emoji et retours à la ligne → le texte est conservé tel quel, retours à la ligne compris
+  - [x] AC3 : « Enregistrer » → « Note enregistrée. » s'affiche et la note apparaît dans la liste ; rouvrir la popup → la note est toujours là
+  - [x] AC4 : « Annuler » puis vérifier dans la console de la popup (`chrome.storage.local.get(null)`) qu'aucune note n'a été écrite ; laisser un texte sans enregistrer et fermer la popup → aucune note créée
+  - [x] Champ vide : « Enregistrer » ne crée rien (validation native du navigateur)
+  - [x] AC5 : désactiver l'extension → boutons et éditeur inaccessibles ; la création est refusée côté arrière-plan (`DISABLED`)
+  - [x] Console du service worker / de la page d'événements : aucune erreur
+
+## Feature 05 — Edit note
+
+### Critères d'acceptation
+
+- [x] AC1 — Accéder à l'édition : chaque note affichée porte son bouton « Modifier » ; celui-ci ouvre l'éditeur sur **cette** note (titre « Modifier la note », contenu pré-rempli, focus dans le champ, focus rendu au bouton à la fermeture)
+- [x] AC2 — Modification : le contenu est modifiable dans le `<textarea>` (texte libre : accents, caractères spéciaux, emojis, retours à la ligne), dans la limite de `MAX_NOTE_LENGTH` (5000 caractères)
+- [x] AC3 — Enregistrement : « Enregistrer » envoie `UPDATE_NOTE_REQUEST` ; le contexte d'arrière-plan remplace le seul contenu de la note visée (identifiant, URL et `createdAt` conservés, `updatedAt` mis à jour), la liste est relue depuis le stockage et « Note modifiée. » est annoncé
+- [x] AC4 — Pas d'enregistrement automatique : aucune écriture avant la validation du formulaire ; « Annuler » et la fermeture de la popup ne modifient rien, et un échec conserve le texte saisi
+- [x] AC5 — Extension désactivée : les boutons « Modifier » sont créés désactivés et ne sont ouverts qu'après lecture d'un état d'activation vrai ; l'éditeur est dans le `<fieldset disabled>` et la modification est refusée côté arrière-plan (`DISABLED`) même si l'interface est contournée
+
+### Livré
+
+- `manifest.json` — version `0.5.0` (aucune permission supplémentaire : `storage` et `activeTab` suffisent)
+- `shared/notes-messages.js` — `UPDATE_NOTE_REQUEST` / `UPDATE_NOTE_RESULT` et `NOTES_EDIT_FAILURE` (dont `NOTE_NOT_FOUND`) ; les raisons d'échec partagent leurs valeurs d'une opération à l'autre
+- `shared/note.js` — `updateNoteContent()` : conserve `id`, `url` et `createdAt`, met à jour `updatedAt`
+- `shared/notes-store.js` — `updateNoteForUrl()` (ne réécrit que la note visée, à sa position, préserve les autres entrées y compris invalides) et `NotesStoreNoteNotFoundError`
+- `service-worker/note-requests.js` (nouveau) — traitement des demandes extrait de `service-worker.js` pour rester sous 200 lignes (règle 04) : `handleViewNotesRequest()`, `handleCreateNoteRequest()`, `handleUpdateNoteRequest()` (verrou d'activation et validation côté arrière-plan)
+- `service-worker/service-worker.js` — réduit à la vérification de l'expéditeur et au routage des messages connus (route `UPDATE_NOTE_REQUEST` ajoutée)
+- `popup/note-item.js` — bouton « Modifier » par note, désactivé par défaut, nom accessible précisant la note (règle 10)
+- `popup/note-editor.js` — un seul formulaire pour créer et modifier (`openCreate` / `openEdit`), contenu pré-rempli, focus rendu au bouton déclencheur ; rien n'est écrit avant la soumission
+- `popup/notes-view.js` — rendu des actions d'une note, ouverture/fermeture de ces actions selon l'état d'activation (`setNoteActionsEnabled`), messages d'échec d'enregistrement (`NOTE_NOT_FOUND`)
+- `popup/notes-client.js` — `updateNoteForActiveTab()` et mutualisation de la résolution de l'onglet actif et de la validation des réponses
+- `popup/notes-section.js` — suivi de l'état d'activation, enregistrement d'une création ou d'une modification, rechargement de la liste depuis le stockage, nettoyage des écouteurs
+- `popup/popup.html`, `popup/popup.css` — titre de l'éditeur identifié, bouton global « Modifier une note » remplacé par les boutons de note, styles de la zone d'actions d'une note
+- `popup/popup.js` — nettoyage des écouteurs de la section « Notes du site »
+- `README.md` — utilisation (modifier une note), structure, données
+- ADR-006 — action par note, protocole de modification, réutilisation de l'éditeur
+
+### Limites connues (à traiter dans une prochaine feature)
+
+- « Supprimer une note » reste un bouton inactif (interface seule) ; un texte d'aide le signale.
+- La modification lit puis réécrit le tableau du site : deux popups enregistrant au même instant pourraient perdre une note (usage local mono-utilisateur).
+- Si la note a été supprimée entre son affichage et l'enregistrement, la modification est refusée (`NOTE_NOT_FOUND`) et la liste n'est pas rafraîchie sous l'éditeur : rouvrir la popup.
+- Aucun garde-fou avant de changer de cible dans l'éditeur : viser une autre note remplace le brouillon en cours (rien n'est jamais enregistré sans « Enregistrer »).
+
+### Validation
+
+- [x] `manifest.json` : JSON valide, version `0.5.0`, permissions inchangées (`storage`, `activeTab`), ressources référencées présentes
+- [x] Syntaxe JavaScript vérifiée (`node --check` en mode module) sur `shared/*.js`, `popup/*.js` et `service-worker/*.js`
+- [x] Cohérence des identifiants HTML ↔ `getElementById` (`note-editor-title` ajouté ; `create-note`, `note-editor`, `note-editor-site`, `note-content`, `note-editor-error`, `save-note`, `cancel-note`, `notes-site`, `notes-message`, `notes-list`)
+- [x] Taille des fichiers : chaque module reste sous 200 lignes (maximum : `notes-view.js`, 187 lignes)
+- [x] Logique vérifiée hors navigateur (harnais Node avec `chrome.storage.local` simulé, 27 assertions) : `updateNoteContent` conserve l'identité de la note et ne la mute pas ; `updateNoteForUrl` ne réécrit que la note visée et préserve l'ordre et les autres entrées ; refus `INVALID_REQUEST` / `UNSUPPORTED_PAGE` / `INVALID_CONTENT` / `DISABLED` / `NOTE_NOT_FOUND` / `STORE_CONFLICT` ; création non régressée
+- [x] Éditeur vérifié hors navigateur (mini-stub DOM, 22 assertions) : mode création / modification, titre et site annoncés, contenu pré-rempli, brouillon transmis **uniquement** à la soumission, brouillon conservé à la réouverture du même formulaire, focus rendu au bouton déclencheur
+- [x] Boutons de note vérifiés hors navigateur (mini-stub DOM, 15 assertions) : « Modifier » créé désactivé par défaut et selon l'état d'activation, nom accessible précisant la note (contenu tronqué), clic transmettant la note et son bouton, focus rendu au bouton de la note modifiée après re-rendu (aucun focus si la note a disparu)
+- [x] Aucune régression sur les features 01 à 04 : lecture, création, gating d'activation et messages d'échec inchangés (vérifiés par le harnais et par relecture du diff)
+- [x] Validation manuelle dans Chrome et Firefox
+  - [x] AC1 : extension activée → « Modifier » sur une note ouvre l'éditeur pré-rempli avec le contenu de cette note et place le focus dans le champ
+  - [x] AC2 : modifier le texte (accents, caractères spéciaux, emoji, retours à la ligne) → le texte est conservé tel quel
+  - [x] AC3 : « Enregistrer » → « Note modifiée. » s'affiche et la liste montre le nouveau contenu ; rouvrir la popup → la modification est toujours là ; dans la console de la popup, `chrome.storage.local.get(null)` → même `id`, même `createdAt`, `updatedAt` à jour
+  - [x] AC4 : modifier puis « Annuler », puis vérifier dans la console de la popup qu'aucune écriture n'a eu lieu ; laisser une modification non enregistrée et fermer la popup → la note reste inchangée
+  - [x] Champ vide : « Enregistrer » ne vide pas la note (validation native du navigateur)
+  - [x] AC5 : désactiver l'extension → les boutons « Modifier » sont grisés et non focusables, l'éditeur est inaccessible ; la modification est refusée côté arrière-plan (`DISABLED`)
+  - [x] Note supprimée du stockage avant l'enregistrement → « Cette note n'existe plus… » s'affiche et le texte saisi est conservé
+  - [x] Console du service worker / de la page d'événements : aucune erreur
+
