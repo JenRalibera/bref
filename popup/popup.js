@@ -6,18 +6,17 @@
  *   - « Activation » (`activation-section.js`) ;
  *   - « Notes du site » (`notes-section.js`).
  *
- * Ce module se contente de les initialiser puis de libérer les écouteurs de la
- * section d'activation à la fermeture de la popup (règle 11).
+ * Ce module se contente de les initialiser puis de libérer leurs écouteurs à la
+ * fermeture de la popup (règle 11).
  */
 
 import { initActivationSection } from "./activation-section.js";
 import { initNotesSection } from "./notes-section.js";
 
 const cleanupActivationSection = initActivationSection();
-
-initNotesSection();
+const cleanupNotesSection = initNotesSection();
 
 window.addEventListener("pagehide", () => {
   cleanupActivationSection();
+  cleanupNotesSection();
 });
-

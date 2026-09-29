@@ -92,3 +92,19 @@ export function createNote(siteUrl, content) {
     updatedAt: now,
   };
 }
+
+/**
+ * Renvoie une copie d'une note avec un nouveau contenu.
+ *
+ * L'identifiant, l'URL du site et la date de création sont conservés : seule la
+ * date de dernière modification est mise à jour, par ce module, pour qu'une
+ * note modifiée respecte toujours `isValidNote`.
+ *
+ * @param {{ id: string, url: string, content: string, createdAt: string, updatedAt: string }} note
+ *   Note existante déjà validée (voir `isValidNote`).
+ * @param {string} content Nouveau contenu déjà validé (voir `normalizeNoteContent`).
+ * @returns {{ id: string, url: string, content: string, createdAt: string, updatedAt: string }}
+ */
+export function updateNoteContent(note, content) {
+  return { ...note, content, updatedAt: new Date().toISOString() };
+}

@@ -30,16 +30,16 @@
         <legend class="notes-actions-legend">Actions sur les notes</legend>
         <div class="notes-actions-buttons">
           <button class="notes-action" type="button" id="create-note">Créer une note</button>
-          <button class="notes-action" type="button">Modifier une note</button>
           <button class="notes-action" type="button">Supprimer une note</button>
         </div>
 
         <!--
-          Éditeur d'une nouvelle note : rien n'est enregistré tant que
-          l'utilisateur n'a pas validé « Enregistrer » (AC4).
+          Éditeur d'une note : création d'une note, ou modification de la note
+          choisie dans la liste. Rien n'est enregistré tant que l'utilisateur
+          n'a pas validé « Enregistrer » (AC4).
         -->
         <form class="note-editor" id="note-editor" hidden>
-          <h3 class="note-editor-title">Nouvelle note</h3>
+          <h3 class="note-editor-title" id="note-editor-title">Nouvelle note</h3>
           <p class="note-editor-site" id="note-editor-site"></p>
           <label class="note-editor-label" for="note-content">Contenu de la note</label>
           <textarea
@@ -58,7 +58,8 @@
         </form>
 
         <p class="notes-actions-hint">
-          Modifier et supprimer une note seront disponibles une fois ces actions implémentées.
+          Modifier une note : bouton « Modifier » sur la note concernée. Supprimer une note sera
+          disponible une fois cette action implémentée.
         </p>
       </fieldset>
 
