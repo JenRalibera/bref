@@ -14,20 +14,25 @@
  *   à modifier, `content` son nouveau texte.
  * - `UPDATE_NOTE_RESULT`  : `{ type, ok: true }` en cas de succès, sinon
  *   `{ type, ok: false, reason }`.
+ * - `DELETE_NOTE_REQUEST` : `{ type, url, id }` — `id` désigne la note à
+ *   supprimer.
+ * - `DELETE_NOTE_RESULT`  : `{ type, ok: true }` en cas de succès, sinon
+ *   `{ type, ok: false, reason }`.
  *
  * Senders et receivers partagent ces constantes : un seul source de vérité
  * (règle 14).
  *
  * Les raisons d'échec partagent leurs valeurs d'une opération à l'autre :
- * `UNSUPPORTED_PAGE` désigne le même échec pour une consultation, une création
- * ou une modification. Une raison est donc reconnaissable par sa chaîne, quel
- * que soit le message qui l'a produite.
+ * `UNSUPPORTED_PAGE` désigne le même échec pour une consultation, une création,
+ * une modification ou une suppression. Une raison est donc reconnaissable par sa
+ * chaîne, quel que soit le message qui l'a produite.
  */
 
 const INVALID_REQUEST = "INVALID_REQUEST";
 const UNSUPPORTED_PAGE = "UNSUPPORTED_PAGE";
 const DISABLED = "DISABLED";
 const INVALID_CONTENT = "INVALID_CONTENT";
+const NOTE_NOT_FOUND = "NOTE_NOT_FOUND";
 const STORE_CONFLICT = "STORE_CONFLICT";
 const WRITE_FAILED = "WRITE_FAILED";
 
@@ -38,6 +43,8 @@ export const MESSAGE_TYPE = {
   CREATE_NOTE_RESULT: "CREATE_NOTE_RESULT",
   UPDATE_NOTE_REQUEST: "UPDATE_NOTE_REQUEST",
   UPDATE_NOTE_RESULT: "UPDATE_NOTE_RESULT",
+  DELETE_NOTE_REQUEST: "DELETE_NOTE_REQUEST",
+  DELETE_NOTE_RESULT: "DELETE_NOTE_RESULT",
 };
 
 /** Raisons possibles d'échec d'une consultation. */
@@ -68,7 +75,23 @@ export const NOTES_EDIT_FAILURE = {
   UNSUPPORTED_PAGE,
   DISABLED,
   INVALID_CONTENT,
-  NOTE_NOT_FOUND: "NOTE_NOT_FOUND",
+  NOTE_NOT_FOUND,
+  STORE_CONFLICT,
+  WRITE_FAILED,
+};
+
+/**
+ * Raisons possibles d'échec d'une suppression.
+ *
+ * Une suppression n'a pas de contenu à valider : `INVALID_CONTENT` n'y figure
+ * pas. `NOTE_NOT_FOUND` signale que la note visée n'existe plus (déjà supprimée
+ * entre son affichage dans la popup et la confirmation).
+ */
+export const NOTES_DELETE_FAILURE = {
+  INVALID_REQUEST,
+  UNSUPPORTED_PAGE,
+  DISABLED,
+  NOTE_NOT_FOUND,
   STORE_CONFLICT,
   WRITE_FAILED,
 };

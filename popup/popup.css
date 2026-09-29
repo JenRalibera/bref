@@ -13,6 +13,7 @@
   --color-primary-strong: #4338ca;
   --color-success: #146c43;
   --color-danger: #b3261e;
+  --color-danger-strong: #8c1d17;
   --color-text-inverse: #ffffff;
   --color-border: #d9d6e8;
 
@@ -328,4 +329,63 @@ body {
 
 .notes-action--secondary:hover:not(:disabled) {
   background-color: var(--color-background);
+}
+
+/* Bouton destructeur (suppression) — règles après les styles de base. */
+.notes-action--danger {
+  background-color: var(--color-danger);
+}
+
+.notes-action--danger:hover:not(:disabled) {
+  background-color: var(--color-danger-strong);
+}
+
+/* Confirmation de suppression */
+
+.delete-confirm {
+  width: min(20rem, calc(100% - 2rem));
+  padding: var(--space-4);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.delete-confirm::backdrop {
+  background-color: rgb(0 0 0 / 0.45);
+}
+
+.delete-confirm-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.delete-confirm-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.delete-confirm-message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.delete-confirm-error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+}
+
+/* L'attribut `hidden` doit primer sur le style de bloc. */
+.delete-confirm-error[hidden] {
+  display: none;
+}
+
+.delete-confirm-buttons {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }

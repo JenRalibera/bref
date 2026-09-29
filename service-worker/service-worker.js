@@ -7,9 +7,9 @@
  * stockées (règle 06).
  *
  * La consultation des notes est volontairement autorisée même quand l'extension
- * est désactivée ; la création et la modification, elles, sont refusées dans ce
- * cas. Le verrouillage de l'interface n'est pas une frontière de sécurité : la
- * décision est revérifiée ici (règle 07).
+ * est désactivée ; la création, la modification et la suppression, elles, sont
+ * refusées dans ce cas. Le verrouillage de l'interface n'est pas une frontière
+ * de sécurité : la décision est revérifiée ici (règle 07).
  *
  * Ce fichier est déclaré à la fois en `background.service_worker` (Chrome) et
  * en `background.scripts` (Firefox, ADR-004) : il n'utilise donc que les API
@@ -19,14 +19,17 @@
 import {
   MESSAGE_TYPE,
   NOTES_CREATE_FAILURE,
+  NOTES_DELETE_FAILURE,
   NOTES_EDIT_FAILURE,
   NOTES_VIEW_FAILURE,
 } from "../shared/notes-messages.js";
 import {
   buildCreateFailure,
+  buildDeleteFailure,
   buildEditFailure,
   buildViewFailure,
   handleCreateNoteRequest,
+  handleDeleteNoteRequest,
   handleUpdateNoteRequest,
   handleViewNotesRequest,
 } from "./note-requests.js";
@@ -67,6 +70,14 @@ const REQUEST_HANDLERS = new Map([
       handle: handleUpdateNoteRequest,
       buildFailure: buildEditFailure,
       fallbackReason: NOTES_EDIT_FAILURE.WRITE_FAILED,
+    },
+  ],
+  [
+    MESSAGE_TYPE.DELETE_NOTE_REQUEST,
+    {
+      handle: handleDeleteNoteRequest,
+      buildFailure: buildDeleteFailure,
+      fallbackReason: NOTES_DELETE_FAILURE.WRITE_FAILED,
     },
   ],
 ]);
