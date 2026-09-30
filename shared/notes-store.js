@@ -111,12 +111,15 @@ export async function addNoteForUrl(normalizedUrl, note) {
  * @param {string} normalizedUrl
  * @param {string} noteId Identifiant de la note à modifier.
  * @param {string} content Nouveau contenu déjà validé (voir `normalizeNoteContent`).
+ * @param {string | null} [image] Nouvelle image déjà validée : `undefined`
+ *   conserve l'image existante, `null` la retire, une URL de données la
+ *   remplace (voir `shared/note-image.js`).
  * @returns {Promise<void>}
  * @throws {NotesStoreConflictError} si la valeur stockée n'est pas un tableau.
  * @throws {NotesStoreNoteNotFoundError} si aucune note du site ne porte cet
  *   identifiant.
  */
-export async function updateNoteForUrl(normalizedUrl, noteId, content) {
+export async function updateNoteForUrl(normalizedUrl, noteId, content, image = undefined) {
   const storageKey = buildNotesStorageKey(normalizedUrl);
   const stored = await chrome.storage.local.get(storageKey);
   const storedNotes = stored[storageKey];
@@ -133,7 +136,7 @@ export async function updateNoteForUrl(normalizedUrl, noteId, content) {
   }
 
   const updatedNotes = [...notes];
-  updatedNotes[noteIndex] = updateNoteContent(notes[noteIndex], content);
+  updatedNotes[noteIndex] = updateNoteContent(notes[noteIndex], content, image);
 
   await chrome.storage.local.set({ [storageKey]: updatedNotes });
 }

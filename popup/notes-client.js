@@ -1,12 +1,11 @@
 /*
  * notes-client.js — accès aux notes depuis la popup.
  *
- * La popup ne lit ni n'écrit jamais le stockage des notes : elle résout l'URL
- * de l'onglet actif, délègue l'opération au contexte d'arrière-plan (règle 06)
- * puis valide la réponse reçue, traitée comme une donnée non fiable (règle 07).
- *
+ * La popup ne lit ni n'écrit le stockage des notes : elle résout l'URL de
+ * l'onglet actif, délègue l'opération au contexte d'arrière-plan (règle 06) et
+ * valide la réponse reçue, traitée comme une donnée non fiable (règle 07).
  * Aucune fonction de ce module ne rejette : chacune renvoie un résultat
- * `{ ok: true, … }` ou `{ ok: false, reason }` directement affichable (règle 15).
+ * `{ ok: true, … }` ou `{ ok: false, reason }` affichable en l'état (règle 15).
  */
 
 import {
@@ -17,10 +16,7 @@ import {
   NOTES_VIEW_FAILURE,
 } from "../shared/notes-messages.js";
 
-/**
- * Raisons d'échec selon la demande envoyée : échec général (envoi, lecture ou
- * écriture impossible) puis page non supportée.
- */
+/** Raisons d'échec selon la demande : échec général, puis page non supportée. */
 const REQUEST_FAILURES = {
   [MESSAGE_TYPE.VIEW_NOTES_REQUEST]: { failed: NOTES_VIEW_FAILURE.READ_FAILED, unsupportedPage: NOTES_VIEW_FAILURE.UNSUPPORTED_PAGE },
   [MESSAGE_TYPE.CREATE_NOTE_REQUEST]: { failed: NOTES_CREATE_FAILURE.WRITE_FAILED, unsupportedPage: NOTES_CREATE_FAILURE.UNSUPPORTED_PAGE },
@@ -32,10 +28,8 @@ const REQUEST_FAILURES = {
 const UNKNOWN_REQUEST_REASON = "UNKNOWN_REQUEST";
 
 /**
- * Lit l'URL de l'onglet actif.
- *
- * L'accès temporaire accordé par `activeTab` couvre l'URL de l'onglet actif au
- * moment où l'utilisateur ouvre la popup.
+ * Lit l'URL de l'onglet actif : l'accès temporaire accordé par `activeTab`
+ * couvre l'onglet actif au moment où l'utilisateur ouvre la popup.
  *
  * @returns {Promise<string | null>} `null` si l'URL n'est pas lisible (page
  *   interne du navigateur, boutique d'extensions, page non autorisée).
@@ -83,32 +77,32 @@ async function sendRequestForActiveTab(request) {
 }
 
 /**
- * @param {unknown} response
+ * @param {unknown} value
  * @returns {boolean} `true` si la réponse respecte le protocole de consultation.
  */
-function isViewNotesResult(response) {
-  if (typeof response !== "object" || response === null || response.type !== MESSAGE_TYPE.VIEW_NOTES_RESULT) {
+function isViewNotesResult(value) {
+  if (typeof value !== "object" || value === null || value.type !== MESSAGE_TYPE.VIEW_NOTES_RESULT) {
     return false;
   }
 
-  if (response.ok === true) {
-    return typeof response.siteUrl === "string" && Array.isArray(response.notes);
+  if (value.ok === true) {
+    return typeof value.siteUrl === "string" && Array.isArray(value.notes);
   }
 
-  return response.ok === false && typeof response.reason === "string";
+  return value.ok === false && typeof value.reason === "string";
 }
 
 /**
- * @param {unknown} response
+ * @param {unknown} value
  * @param {string} expectedType Type de résultat attendu.
  * @returns {boolean} `true` si la réponse respecte le protocole d'écriture.
  */
-function isWriteNoteResult(response, expectedType) {
-  if (typeof response !== "object" || response === null || response.type !== expectedType) {
+function isWriteNoteResult(value, expectedType) {
+  if (typeof value !== "object" || value === null || value.type !== expectedType) {
     return false;
   }
 
-  return response.ok === true || (response.ok === false && typeof response.reason === "string");
+  return value.ok === true || (value.ok === false && typeof value.reason === "string");
 }
 
 /**
@@ -160,10 +154,15 @@ async function writeNoteForActiveTab(request, expectedType) {
  * Crée une note pour le site de l'onglet actif.
  *
  * @param {string} content Texte saisi par l'utilisateur.
+ * @param {string | null} [image] Image collée (URL de données), `null` ou
+ *   absente pour une note sans image (AC2).
  * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
  */
-export async function createNoteForActiveTab(content) {
-  return writeNoteForActiveTab({ type: MESSAGE_TYPE.CREATE_NOTE_REQUEST, content }, MESSAGE_TYPE.CREATE_NOTE_RESULT);
+export async function createNoteForActiveTab(content, image = null) {
+  return writeNoteForActiveTab(
+    { type: MESSAGE_TYPE.CREATE_NOTE_REQUEST, content, ...(image === null ? {} : { image }) },
+    MESSAGE_TYPE.CREATE_NOTE_RESULT
+  );
 }
 
 /**
@@ -171,11 +170,14 @@ export async function createNoteForActiveTab(content) {
  *
  * @param {string} noteId Identifiant de la note à modifier.
  * @param {string} content Nouveau texte saisi par l'utilisateur.
+ * @param {string | null | undefined} [image] Nouvelle image : `undefined`
+ *   (absente) conserve l'image existante, `null` la retire, une URL de données
+ *   la remplace.
  * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
  */
-export async function updateNoteForActiveTab(noteId, content) {
+export async function updateNoteForActiveTab(noteId, content, image = undefined) {
   return writeNoteForActiveTab(
-    { type: MESSAGE_TYPE.UPDATE_NOTE_REQUEST, id: noteId, content },
+    { type: MESSAGE_TYPE.UPDATE_NOTE_REQUEST, id: noteId, content, ...(image === undefined ? {} : { image }) },
     MESSAGE_TYPE.UPDATE_NOTE_RESULT
   );
 }

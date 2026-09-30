@@ -3,7 +3,10 @@
  *
  * Le contenu est inséré via `textContent` : il n'est jamais interprété comme du
  * HTML (règle 07). Les retours à la ligne sont conservés par `white-space:
- * pre-wrap` (voir `popup.css`).
+ * pre-wrap` (voir `popup.css`). L'image, quand elle existe, est affichée par
+ * un `<img>` dont la source est l'URL de données stockée : aucune image
+ * distante n'est chargée, et le texte alternatif reprend le contenu de la
+ * note pour les lecteurs d'écran (règle 10).
  *
  * Chaque note porte ses propres boutons « Modifier » et « Supprimer » (AC1 de
  * la modification, AC1 de la suppression) : la note visée est désignée
@@ -36,6 +39,14 @@ export function createNoteItem(note, { canEdit = false, onEdit = null, onDelete 
   content.className = "note-content";
   content.textContent = note.content;
   item.append(content);
+
+  if (typeof note.image === "string" && note.image.length > 0) {
+    const image = document.createElement("img");
+    image.className = "note-image";
+    image.src = note.image;
+    image.alt = `Image de la note : ${formatNoteExcerpt(note.content)}`;
+    item.append(image);
+  }
 
   const meta = document.createElement("p");
   meta.className = "note-meta";

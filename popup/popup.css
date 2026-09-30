@@ -149,6 +149,14 @@ body {
   overflow-wrap: anywhere;
 }
 
+.note-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
 .note-meta {
   margin: 0;
   font-size: var(--font-size-xs);
@@ -276,7 +284,8 @@ body {
 
 /* L'attribut `hidden` doit primer sur les mises en page ci-dessus. */
 .note-editor[hidden],
-.note-editor-error[hidden] {
+.note-editor-error[hidden],
+.note-editor-preview[hidden] {
   display: none;
 }
 
@@ -294,6 +303,26 @@ body {
 
 .note-editor-label {
   font-size: var(--font-size-sm);
+}
+
+.note-editor-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.note-editor-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note-editor-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
 }
 
 .note-editor-input {

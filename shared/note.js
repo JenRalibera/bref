@@ -7,13 +7,18 @@
  *     id: string,        // identifiant stable de la note
  *     url: string,       // URL normalisée du site auquel elle appartient
  *     content: string,   // contenu rédigé par l'utilisateur
+ *     image: string|null // image facultative (URL de données, voir `note-image.js`)
  *     createdAt: string, // date ISO 8601 de création
  *     updatedAt: string  // date ISO 8601 de dernière modification
  *   }
  *
+ * L'image est facultative : une note sans image ne porte pas la clé `image`
+ * (notes créées avant l'ajout des images), ou la porte avec la valeur `null`.
  * Toute note lue depuis le stockage est traitée comme une donnée non fiable et
  * doit passer par `isValidNote` avant d'être affichée (règles 07 et 15).
  */
+
+import { isValidNoteImage } from "./note-image.js";
 
 /**
  * Longueur maximale du contenu d'une note.
@@ -35,6 +40,7 @@ export function isValidNote(value) {
     isNonEmptyString(value.id) &&
     typeof value.url === "string" &&
     typeof value.content === "string" &&
+    (value.image === undefined || isValidNoteImage(value.image)) &&
     isIsoDate(value.createdAt) &&
     isIsoDate(value.updatedAt)
   );
@@ -79,15 +85,18 @@ export function normalizeNoteContent(value) {
  *
  * @param {string} siteUrl URL normalisée du site (voir `shared/url.js`).
  * @param {string} content Contenu déjà validé (voir `normalizeNoteContent`).
- * @returns {{ id: string, url: string, content: string, createdAt: string, updatedAt: string }}
+ * @param {string | null} [image] Image déjà validée (voir `normalizeNoteImage`) :
+ *   `null` (ou absente) pour une note sans image (AC2).
+ * @returns {{ id: string, url: string, content: string, image: string | null, createdAt: string, updatedAt: string }}
  */
-export function createNote(siteUrl, content) {
+export function createNote(siteUrl, content, image = null) {
   const now = new Date().toISOString();
 
   return {
     id: crypto.randomUUID(),
     url: siteUrl,
     content,
+    image,
     createdAt: now,
     updatedAt: now,
   };
@@ -103,8 +112,16 @@ export function createNote(siteUrl, content) {
  * @param {{ id: string, url: string, content: string, createdAt: string, updatedAt: string }} note
  *   Note existante déjà validée (voir `isValidNote`).
  * @param {string} content Nouveau contenu déjà validé (voir `normalizeNoteContent`).
- * @returns {{ id: string, url: string, content: string, createdAt: string, updatedAt: string }}
+ * @param {string | null} [image] Nouvelle image déjà validée : `undefined`
+ *   conserve l'image existante, `null` la retire, une URL de données la
+ *   remplace.
+ * @returns {{ id: string, url: string, content: string, image: string | null, createdAt: string, updatedAt: string }}
  */
-export function updateNoteContent(note, content) {
-  return { ...note, content, updatedAt: new Date().toISOString() };
+export function updateNoteContent(note, content, image = undefined) {
+  return {
+    ...note,
+    content,
+    image: image === undefined ? (note.image ?? null) : image,
+    updatedAt: new Date().toISOString(),
+  };
 }

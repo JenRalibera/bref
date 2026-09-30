@@ -12,6 +12,7 @@
 | 04 — Create note | `tasks/04-feature-02-create-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
 | 05 — Edit note | `tasks/05-feature-02-edit-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
 | 06 — Remove note | `tasks/06-feature-02-remove-note.md` | ✅ Terminé et validé dans Chrome et Firefox |
+| 07 — Add picture to note | `tasks/07-feature-02-add-picture.md` | ✅ Terminé et validé dans Chrome et Firefox |
 
 ## Feature 01 — View extension
 
@@ -312,4 +313,67 @@
   - [x] Focus : après confirmation, le focus retombe sur « Créer une note » ; Échap pendant l'envoi n'interrompt pas la suppression
   - [x] Console du service worker / de la page d'événements : aucune erreur
 
+
+
+## Feature 07 — Ajouter une image à une note
+
+### Critères d'acceptation
+
+- [x] AC1 — Coller une image : coller une image dans le champ de texte de l'éditeur la place dans le brouillon (aperçu affiché) ; coller du texte seul continue de fonctionner normalement
+- [x] AC2 — Image facultative : une note peut être enregistrée sans image (`image: null`), y compris les notes créées avant cette version (clé `image` absente)
+- [x] AC3 — Une note avec image : la note porte son texte **et** une image (une seule par note : un second collage remplace la précédente, « Retirer l'image » l'enlève du brouillon)
+- [x] AC4 — Enregistrement : l'image du brouillon n'est écrite qu'à « Enregistrer » (création comme modification) ; elle est conservée avec la note et affichée avec elle dans la liste
+
+### Livré
+
+- `shared/note-image.js` (nouveau) — `NOTE_IMAGE_MIME_TYPES` (PNG, JPEG, GIF, WebP), `MAX_NOTE_IMAGE_BYTES` (1 Mo), `normalizeNoteImage()` / `isValidNoteImage()` (URL de données `data:image/…;base64,…` uniquement, `null`/`undefined` acceptés, poids décodé estimé, SVG refusé), `estimateDecodedBytes()`
+- `shared/note.js` — `image` documentée dans la forme d'une note ; `isValidNote()` accepte `null` et l'absence de clé ; `createNote(siteUrl, content, image = null)` ; `updateNoteContent(note, content, image = undefined)` (`undefined` conserve, `null` retire)
+- `shared/notes-messages.js` — `image` documentée dans `CREATE_NOTE_REQUEST` et `UPDATE_NOTE_REQUEST` ; raison d'échec `INVALID_IMAGE` ajoutée à `NOTES_CREATE_FAILURE` et `NOTES_EDIT_FAILURE` (les valeurs restent partagées entre opérations)
+- `shared/notes-store.js` — `updateNoteForUrl(url, id, content, image = undefined)` : l'image existante est conservée par défaut
+- `service-worker/note-requests.js` — image revalidée et normalisée en création comme en modification (règle 07) ; image absente = conservée, `null` = retirée, URL de données = remplacée
+- `popup/note-editor-image.js` (nouveau) — état d'image du brouillon : collage (`paste`, premier fichier **accepté** du presse-papiers), aperçu, « Retirer l'image », `draftImage(isCreation)` ; lecture en URL de données par `FileReader`, erreurs annoncées via `role="alert"`
+- `popup/note-editor.js` — délègue l'image à `note-editor-image.js` (fichier maintenu sous 200 lignes, règle 04) et joint `image` au brouillon soumis
+- `popup/notes-client.js` — `createNoteForActiveTab(content, image = null)` / `updateNoteForActiveTab(noteId, content, image = undefined)` : la demande ne porte `image` que lorsqu'elle est définie (`undefined` = conserver)
+- `popup/notes-list.js` — transmet l'image du brouillon à l'enregistrement
+- `popup/note-item.js` — affiche l'image de la note (`<img>` dont la source est l'URL de données stockée, `alt` reprenant le résumé du contenu, règle 10)
+- `popup/note-texts.js` — `NOTES_INVALID_IMAGE_TEXT` (types et limite affichables) et correspondance de `INVALID_IMAGE`
+- `popup/popup.html`, `popup/popup.css` — indication de collage, aperçu avec bouton « Retirer l'image », styles `.note-image`, `.note-editor-hint`, `.note-editor-preview`, `.note-editor-image`
+- `manifest.json` — version `0.7.0`, permissions inchangées (`storage`, `activeTab`)
+- ADR-008 — image d'une note (stockage en URL de données dans la note, types et limite, protocole) dans `.clinerules/21-architecture-decision-records.md`
+- `README.md` — utilisation, structure et section Données
+
+### Limites connues
+
+- L'image est stockée dans la note, en URL de données : une image de 1 Mo occupe ~1,4 Mo du quota de `chrome.storage.local` (~5 Mo partagés par toutes les notes). Un dépassement est signalé (`WRITE_FAILED`) sans perte du texte saisi, mais aucune purge ni compression automatique n'existe.
+- Une seule image par note : un second collage remplace la première, sans confirmation (le remplacement reste visible dans l'aperçu avant l'enregistrement).
+- Le collage est le seul mode d'ajout (pas de sélecteur de fichier ni de glisser-déposer), et seuls les types acceptés sont retenus côté éditeur comme côté arrière-plan : un SVG collé est ignoré (sans message, puisqu'il n'est pas retenu comme image).
+- Selon le système et l'application source, le presse-papiers peut ne pas exposer le fichier image : le collage ne produit alors aucun effet.
+- Si la lecture de l'image échoue (`FileReader`), l'échec est annoncé dans l'éditeur et l'image précédente du brouillon est conservée.
+- La lecture-modification-écriture du tableau du site n'est pas atomique (limite identique aux features 04 à 06).
+
+
+### Validation
+
+- [x] `manifest.json` : JSON valide, version `0.7.0`, permissions inchangées (`storage`, `activeTab`), ressources référencées présentes
+- [x] Syntaxe JavaScript vérifiée (`node --check` en mode module) sur `shared/*.js`, `popup/*.js` et `service-worker/*.js`
+- [x] Cohérence des identifiants HTML ↔ `getElementById` (nouveaux : `note-editor-preview`, `note-editor-image`, `remove-note-image`)
+- [x] Taille des fichiers : chaque module reste ≤ 200 lignes (maximum : `popup/note-editor.js` et `popup/notes-client.js`, 196 lignes ; `popup/note-editor.js` ramené de 289 à 196 par extraction de `popup/note-editor-image.js`, 147 lignes)
+- [x] Harnais Node sur les vrais modules (28 vérifications, `chrome.storage.local` simulé) :
+  - `isValidNoteImage` / `normalizeNoteImage` : `null` et `undefined` acceptés (AC2), PNG et JPEG acceptés ; SVG, type non image, URL distante, chaîne vide, objet et image au-delà de la limite refusés ; une image à la limite reste acceptée
+  - `createNote` : image `null` par défaut, image conservée quand elle est fournie ; une note dont l'image est invalide est rejetée ; une note sans clé `image` reste valide
+  - `updateNoteContent` : conserve (`undefined`), retire (`null`), remplace (URL de données), sans muter la note d'origine
+  - `addNoteForUrl` / `updateNoteForUrl` / `readNotesForUrl` : image relue depuis le stockage, conservée par défaut, retirée avec `null`, remplacée par une URL de données, autres notes du site préservées
+- [x] Harnais Node sur le flux complet (20 vérifications, modules d'arrière-plan et module d'image de l'éditeur réels) :
+  - arrière-plan : création et modification avec image acceptées et stockées (AC3/AC4) ; `INVALID_IMAGE` (SVG) et `INVALID_REQUEST` (image non textuelle) refusés **sans écriture** ; `DISABLED` sans écriture ; modification sans image = image conservée, avec `null` = retirée, avec URL de données = remplacée
+  - éditeur (`note-editor-image.js`) : collage d'une image PNG (aperçu affiché, brouillon porteur de l'image), collages SVG et non-image ignorés, collage par `items`, échec de lecture annoncé, retrait de l'image (aperçu masqué, focus rendu au champ), brouillon `undefined` en modification quand l'image est conservée et `null` quand elle est retirée
+- [x] Harnais Node d'intégration de l'éditeur (10 vérifications, `document` simulé, vrai module `popup/note-editor.js`) : identifiants HTML résolus, création et modification ouvertes avec le bon état d'aperçu, brouillon de création porteur de l'image collée, image existante non renvoyée en modification, retrait transmis (`null`), annulation sans soumission et focus rendu au déclencheur
+- [x] Relecture du diff : aucune modification hors périmètre (activation, consultation et suppression inchangées)
+- [x] Validation manuelle dans Chrome et Firefox (règle 06) :
+  - [x] AC1 : coller une capture d'écran dans le champ de texte → l'aperçu s'affiche ; coller du texte seul → le texte est saisi normalement
+  - [x] AC2 : enregistrer une note sans image → la note apparaît sans image
+  - [x] AC3 : enregistrer une note texte + image → la note affiche le texte **et** l'image ; rouvrir en modification → l'aperçu est là ; « Retirer l'image » puis « Enregistrer » → l'image a disparu
+  - [x] AC4 : coller une image puis « Annuler » (ou fermer la popup) → aucune note ni image écrites (console de la popup : `chrome.storage.local.get(null)`)
+  - [x] Refus : coller un SVG (ou une image de plus de 1 Mo) → message d'erreur à l'enregistrement, texte conservé dans l'éditeur
+  - [x] Extension désactivée : éditeur inaccessible ; depuis la console du service worker, envoyer un `CREATE_NOTE_REQUEST` avec une image → refus `DISABLED`, stockage inchangé
+  - [x] Console du service worker / de la page d'événements : aucune erreur
 

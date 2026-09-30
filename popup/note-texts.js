@@ -8,6 +8,7 @@
  */
 
 import { MAX_NOTE_LENGTH } from "../shared/note.js";
+import { MAX_NOTE_IMAGE_BYTES, NOTE_IMAGE_MIME_TYPES } from "../shared/note-image.js";
 import { NOTES_CREATE_FAILURE, NOTES_DELETE_FAILURE, NOTES_EDIT_FAILURE } from "../shared/notes-messages.js";
 
 /** Limite du résumé d'une note (nom accessible d'un bouton, confirmation). */
@@ -19,6 +20,7 @@ const NOTES_INVALID_CONTENT_TEXT = `Le texte de la note est obligatoire et limit
 const NOTES_SAVE_DISABLED_TEXT =
   "L'extension est désactivée : la note n'a pas pu être enregistrée. Activez-la puis réessayez.";
 const NOTES_SAVE_ERROR_TEXT = "La note n'a pas pu être enregistrée. Merci de réessayer.";
+const NOTES_INVALID_IMAGE_TEXT = `L'image collée ne peut pas être conservée : utilisez une image ${NOTE_IMAGE_MIME_TYPES.map((type) => type.replace("image/", "").toUpperCase()).join(", ")} de ${formatImageSizeLimit(MAX_NOTE_IMAGE_BYTES)} maximum.`;
 const NOTES_DELETE_DISABLED_TEXT =
   "L'extension est désactivée : la note n'a pas pu être supprimée. Activez-la puis réessayez.";
 const NOTES_DELETE_ERROR_TEXT = "La note n'a pas pu être supprimée. Merci de réessayer.";
@@ -62,11 +64,21 @@ export function getNoteSaveFailureText(failureReason) {
       return NOTES_UNSUPPORTED_PAGE_TEXT;
     case NOTES_CREATE_FAILURE.INVALID_CONTENT:
       return NOTES_INVALID_CONTENT_TEXT;
+    case NOTES_CREATE_FAILURE.INVALID_IMAGE:
+      return NOTES_INVALID_IMAGE_TEXT;
     case NOTES_EDIT_FAILURE.NOTE_NOT_FOUND:
       return NOTES_NOTE_NOT_FOUND_TEXT;
     default:
       return NOTES_SAVE_ERROR_TEXT;
   }
+}
+
+/**
+ * @param {number} bytes
+ * @returns {string} limite de poids affichable (ex. « 1 Mo »).
+ */
+function formatImageSizeLimit(bytes) {
+  return `${Math.round(bytes / (1024 * 1024))} Mo`;
 }
 
 /**
