@@ -37,7 +37,7 @@ const NOTE_DELETED_MESSAGE = { text: "Note supprimée.", state: "saved" };
  * @param {{ elements: { site: HTMLElement, message: HTMLElement, list: HTMLElement, createButton: HTMLButtonElement }, noteEditor: object | null, deleteConfirmation: object | null }} options
  *   `noteEditor` et `deleteConfirmation` peuvent être `null` (popup incomplète)
  *   : les actions correspondantes ne sont alors pas proposées.
- * @returns {{ load: () => Promise<void>, setEnabled: (isEnabled: boolean) => void, openCreate: () => void, saveNote: (editor: object, draft: { noteId: string | null, content: string }) => Promise<void>, removeNote: (note: object, dialog: object) => Promise<void> }}
+ * @returns {{ load: () => Promise<void>, setEnabled: (isEnabled: boolean) => void, openCreate: () => void, saveNote: (editor: object, draft: { noteId: string | null, content: string, image?: string | null }) => Promise<void>, removeNote: (note: object, dialog: object) => Promise<void> }}
  */
 export function createNotesList({ elements, noteEditor, deleteConfirmation }) {
   /** Hôte du site affiché, utilisé pour situer la note en cours d'édition. */
@@ -105,16 +105,17 @@ export function createNotesList({ elements, noteEditor, deleteConfirmation }) {
 
   /**
    * Enregistre le brouillon de l'éditeur : création, ou modification de la note
-   * visée. En cas d'échec, l'éditeur reste ouvert avec le texte saisi (AC4).
+   * visée. En cas d'échec, l'éditeur reste ouvert avec le texte saisi et
+   * l'image collée (AC4).
    *
    * @param {{ showError: (message: string) => void, close: () => void }} editor
-   * @param {{ noteId: string | null, content: string }} draft
+   * @param {{ noteId: string | null, content: string, image?: string | null }} draft
    */
   async function saveNote(editor, draft) {
     const isCreation = draft.noteId === null;
     const result = isCreation
-      ? await createNoteForActiveTab(draft.content)
-      : await updateNoteForActiveTab(draft.noteId, draft.content);
+      ? await createNoteForActiveTab(draft.content, draft.image ?? null)
+      : await updateNoteForActiveTab(draft.noteId, draft.content, draft.image);
 
     if (!result.ok) {
       editor.showError(getNoteSaveFailureText(result.reason));

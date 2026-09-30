@@ -15,6 +15,7 @@
  */
 
 import { createNote, normalizeNoteContent } from "../shared/note.js";
+import { normalizeNoteImage } from "../shared/note-image.js";
 import {
   MESSAGE_TYPE,
   NOTES_CREATE_FAILURE,
@@ -91,14 +92,19 @@ async function handleViewNotesRequest(message) {
 /**
  * Traite une demande de création de note.
  *
- * Le contenu est validé ici (texte libre, `MAX_NOTE_LENGTH`) puis écrit pour
- * l'URL normalisée du site, après revérification de l'état d'activation.
+ * Le contenu est validé ici (texte libre, `MAX_NOTE_LENGTH`), ainsi que
+ * l'image facultative (voir `shared/note-image.js`), puis écrits pour l'URL
+ * normalisée du site, après revérification de l'état d'activation.
  *
- * @param {{ url?: unknown, content?: unknown }} message
+ * @param {{ url?: unknown, content?: unknown, image?: unknown }} message
  * @returns {Promise<object>} le résultat envoyé à la popup.
  */
 async function handleCreateNoteRequest(message) {
   if (typeof message.url !== "string" || typeof message.content !== "string") {
+    return buildCreateFailure(NOTES_CREATE_FAILURE.INVALID_REQUEST);
+  }
+
+  if (message.image !== undefined && message.image !== null && typeof message.image !== "string") {
     return buildCreateFailure(NOTES_CREATE_FAILURE.INVALID_REQUEST);
   }
 
@@ -107,22 +113,33 @@ async function handleCreateNoteRequest(message) {
     return buildCreateFailure(NOTES_CREATE_FAILURE.INVALID_CONTENT);
   }
 
+  const image = normalizeNoteImage(message.image);
+  if (!image.valid) {
+    return buildCreateFailure(NOTES_CREATE_FAILURE.INVALID_IMAGE);
+  }
+
   return writeNoteForSite(WRITE_OPERATIONS.CREATE, message.url, (siteUrl) =>
-    addNoteForUrl(siteUrl, createNote(siteUrl, content))
+    addNoteForUrl(siteUrl, createNote(siteUrl, content, image.image))
   );
 }
 
 /**
  * Traite une demande de modification du contenu d'une note existante.
  *
- * La popup ne fournit que l'identifiant de la note visée et le nouveau texte :
- * les dates et le contenu réellement écrits sont maîtrisés ici.
+ * La popup ne fournit que l'identifiant de la note visée, le nouveau texte et
+ * la nouvelle image : les dates et le contenu réellement écrits sont maîtrisés
+ * ici. `image` absent/`undefined` conserve l'image existante, `null` la
+ * retire.
  *
- * @param {{ url?: unknown, id?: unknown, content?: unknown }} message
+ * @param {{ url?: unknown, id?: unknown, content?: unknown, image?: unknown }} message
  * @returns {Promise<object>} le résultat envoyé à la popup.
  */
 async function handleUpdateNoteRequest(message) {
   if (typeof message.url !== "string" || !isNoteId(message.id) || typeof message.content !== "string") {
+    return buildEditFailure(NOTES_EDIT_FAILURE.INVALID_REQUEST);
+  }
+
+  if (message.image !== undefined && message.image !== null && typeof message.image !== "string") {
     return buildEditFailure(NOTES_EDIT_FAILURE.INVALID_REQUEST);
   }
 
@@ -131,8 +148,13 @@ async function handleUpdateNoteRequest(message) {
     return buildEditFailure(NOTES_EDIT_FAILURE.INVALID_CONTENT);
   }
 
+  const image = normalizeNoteImage(message.image);
+  if (!image.valid) {
+    return buildEditFailure(NOTES_EDIT_FAILURE.INVALID_IMAGE);
+  }
+
   return writeNoteForSite(WRITE_OPERATIONS.UPDATE, message.url, (siteUrl) =>
-    updateNoteForUrl(siteUrl, message.id, content)
+    updateNoteForUrl(siteUrl, message.id, content, message.image === undefined ? undefined : image.image)
   );
 }
 

@@ -16,6 +16,7 @@
 
 import { MAX_NOTE_LENGTH } from "../shared/note.js";
 import { findElements } from "./find-elements.js";
+import { createNoteEditorImage } from "./note-editor-image.js";
 
 /** Modes de l'éditeur : une nouvelle note, ou une note existante à modifier. */
 const NOTE_EDITOR_MODE = {
@@ -41,6 +42,9 @@ const ELEMENT_IDS = {
   title: "note-editor-title",
   site: "note-editor-site",
   input: "note-content",
+  preview: "note-editor-preview",
+  previewImage: "note-editor-image",
+  removeImageButton: "remove-note-image",
   error: "note-editor-error",
   saveButton: "save-note",
   cancelButton: "cancel-note",
@@ -49,9 +53,11 @@ const ELEMENT_IDS = {
 /**
  * Crée l'éditeur de note.
  *
- * @param {{ onSubmit: (draft: { noteId: string | null, content: string }, editor: object) => Promise<void> }} options
- *   `onSubmit` reçoit le brouillon — `noteId` vaut `null` pour une création — et
- *   le contrôleur de l'éditeur (pour afficher une erreur ou le fermer).
+ * @param {{ onSubmit: (draft: { noteId: string | null, content: string, image?: string | null }, editor: object) => Promise<void> }} options
+ *   `onSubmit` reçoit le brouillon — `noteId` vaut `null` pour une création,
+ *   `image` vaut l'URL de données collée, `null` sans image, ou `undefined`
+ *   en modification quand l'image existante est conservée — et le
+ *   contrôleur de l'éditeur (pour afficher une erreur ou le fermer).
  * @returns {{ openCreate: (options: object) => void, openEdit: (options: object) => void, close: () => void, showError: (message: string) => void } | null}
  *   `null` si la popup est incomplète.
  */
@@ -63,6 +69,20 @@ export function createNoteEditor({ onSubmit }) {
 
   elements.input.maxLength = MAX_NOTE_LENGTH;
 
+  /** Gestionnaire de l'image du brouillon (collage, retrait, aperçu). */
+  const editorImage = createNoteEditorImage({
+    elements: {
+      input: elements.input,
+      preview: elements.preview,
+      previewImage: elements.previewImage,
+      removeImageButton: elements.removeImageButton,
+    },
+    showError,
+    hideError,
+  });
+
+  const editor = { openCreate, openEdit, close, showError };
+
   let isSaving = false;
 
   /** Note en cours de modification, `null` pour une création. */
@@ -71,15 +91,13 @@ export function createNoteEditor({ onSubmit }) {
   /** Élément à refocaliser à la fermeture (règle 10). */
   let trigger = null;
 
-  const editor = { openCreate, openEdit, close, showError };
-
   /**
    * Ouvre l'éditeur sur une nouvelle note.
    *
    * @param {{ siteHost: string | null, trigger: HTMLButtonElement }} options
    */
   function openCreate({ siteHost, trigger: createTrigger }) {
-    show({ mode: NOTE_EDITOR_MODE.CREATE, siteHost, content: "", noteId: null, trigger: createTrigger });
+    show({ mode: NOTE_EDITOR_MODE.CREATE, siteHost, content: "", image: null, noteId: null, trigger: createTrigger });
   }
 
   /**
@@ -88,10 +106,17 @@ export function createNoteEditor({ onSubmit }) {
    * @param {{ note: object, siteHost: string | null, trigger: HTMLButtonElement }} options
    */
   function openEdit({ note, siteHost, trigger: editTrigger }) {
-    show({ mode: NOTE_EDITOR_MODE.EDIT, siteHost, content: note.content, noteId: note.id, trigger: editTrigger });
+    show({
+      mode: NOTE_EDITOR_MODE.EDIT,
+      siteHost,
+      content: note.content,
+      image: note.image ?? null,
+      noteId: note.id,
+      trigger: editTrigger,
+    });
   }
 
-  function show({ mode, siteHost, content, noteId, trigger: openingTrigger }) {
+  function show({ mode, siteHost, content, image, noteId, trigger: openingTrigger }) {
     const texts = NOTE_EDITOR_TEXTS[mode];
     const isAnotherTarget = elements.form.hidden || editedNoteId !== noteId;
 
@@ -105,6 +130,7 @@ export function createNoteEditor({ onSubmit }) {
     // (règle 09) ; viser une autre note affiche le contenu de celle-ci.
     if (isAnotherTarget) {
       elements.input.value = content;
+      editorImage.show(image);
     }
 
     elements.form.hidden = false;
@@ -114,6 +140,7 @@ export function createNoteEditor({ onSubmit }) {
   function close() {
     elements.form.hidden = true;
     elements.input.value = "";
+    editorImage.show(null);
     hideError();
 
     editedNoteId = null;
@@ -144,7 +171,11 @@ export function createNoteEditor({ onSubmit }) {
     isSaving = true;
     elements.saveButton.disabled = true;
 
-    const draft = { noteId: editedNoteId, content: elements.input.value };
+    const draft = {
+      noteId: editedNoteId,
+      content: elements.input.value,
+      image: editorImage.draftImage(editedNoteId === null),
+    };
 
     try {
       await onSubmit(draft, editor);

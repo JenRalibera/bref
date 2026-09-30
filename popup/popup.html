@@ -47,8 +47,13 @@
             name="content"
             rows="4"
             required
-            aria-describedby="note-editor-error"
+            aria-describedby="note-editor-error note-editor-image-hint"
           ></textarea>
+          <p class="note-editor-hint" id="note-editor-image-hint">Collez une image dans le champ pour l'associer à la note (facultatif).</p>
+          <div class="note-editor-preview" id="note-editor-preview" hidden>
+            <img class="note-editor-image" id="note-editor-image" alt="Aperçu de l'image de la note">
+            <button class="notes-action notes-action--secondary" type="button" id="remove-note-image">Retirer l'image</button>
+          </div>
           <p class="note-editor-error" id="note-editor-error" role="alert" hidden></p>
           <div class="note-editor-buttons">
             <button class="notes-action" type="submit" id="save-note">Enregistrer</button>
