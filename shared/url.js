@@ -1,32 +1,39 @@
 /*
- * url.js — identité des pages web, utilisée comme clé de rattachement des notes.
+ * url.js — identité d'un site web, utilisée comme clé de rattachement des notes.
  *
- * Une note est associée à l'URL normalisée de son site. La normalisation doit
- * être appliquée à l'identique à l'écriture et à la lecture : sinon les notes
- * d'un même site se retrouvent séparées en plusieurs clés (règle 09).
+ * Une note appartient à un **domaine** (hôte), pas à une page : toutes les pages
+ * d'un même site partagent donc les mêmes notes. C'est le comportement attendu,
+ * car l'URL d'une page change souvent sans changer de site (requête de filtre,
+ * paramètre de suivi, navigation interne d'une application web) ; rattacher les
+ * notes à l'URL complète les faisait « disparaître » dès que l'URL changeait,
+ * et séparait en plusieurs clés les notes d'un même site (règle 09).
+ *
+ * Les clés de stockage sont donc `notes:<hôte>` (voir `shared/notes-store.js`).
  */
 
-/** Seules les pages web peuvent porter des notes. */
+/** Seuls les sites web peuvent porter des notes. */
 const SUPPORTED_PROTOCOLS = new Set(["http:", "https:"]);
 
 /**
- * Normalise l'URL d'une page en une clé d'identité stable.
+ * Normalise l'URL d'une page en la clé du site (domaine) auquel elle appartient.
  *
  * Règles appliquées et assumées :
  * - seuls `http:` et `https:` sont acceptés : les pages internes du navigateur
  *   (`chrome://…`), `file:`, `chrome-extension:`… ne portent pas de notes ;
- * - le fragment (`#…`) est supprimé : il ne change pas la page consultée ;
- * - la requête (`?…`) est conservée : elle peut désigner un contenu différent ;
- * - schéma et hôte sont en minuscules et le port par défaut est retiré
- *   (comportement du constructeur `URL`) ;
- * - `www.example.com` et `example.com` restent deux hôtes distincts : ils ne
- *   sont pas fusionnés, afin de ne jamais mélanger les notes de deux sites.
+ * - seule l'hôte est retenue : le chemin, la requête (`?…`) et le fragment
+ *   (`#…`) sont ignorés, car ils changent au fil de la navigation sans changer
+ *   de site ;
+ * - `http` et `https` d'un même hôte partagent donc leurs notes ;
+ * - l'hôte est en minuscules et le port par défaut est retiré (comportement du
+ *   constructeur `URL`) ; un port explicite fait partie de la clé ;
+ * - `www.example.com` et `example.com` restent deux sites distincts : les
+ *   fusionner pourrait attribuer une note au mauvais site.
  *
  * @param {unknown} rawUrl
- * @returns {string | null} l'URL normalisée, ou `null` si la page ne peut pas
- *   porter de notes (URL absente, invalide ou protocole non supporté).
+ * @returns {string | null} la clé du site (hôte), ou `null` si la page ne peut
+ *   pas porter de notes (URL absente, invalide ou protocole non supporté).
  */
-export function normalizeUrl(rawUrl) {
+export function normalizeSiteKey(rawUrl) {
   if (typeof rawUrl !== "string" || rawUrl.length === 0) {
     return null;
   }
@@ -42,7 +49,5 @@ export function normalizeUrl(rawUrl) {
     return null;
   }
 
-  parsedUrl.hash = "";
-
-  return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}${parsedUrl.search}`;
+  return parsedUrl.host;
 }

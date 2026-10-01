@@ -30,7 +30,7 @@ J'essaie de créer des extensions pour navigateur aléatoiremet, du coup, si tu 
 
 - `manifest.json` — Manifest V3 (service worker en module, déclaré aussi en `background.scripts` pour Firefox)
 - `popup/` — interface de la popup (`popup.html`, `popup.css`, `popup.js` et les modules : `activation-section.js`, `notes-section.js`, `notes-view.js`, `note-item.js`, `note-editor.js`, `note-editor-image.js` (image facultative du brouillon : collage, aperçu, retrait), `notes-list.js`, `delete-confirm.js`, `notes-client.js`, `note-texts.js`, `find-elements.js`)
-- `service-worker/` — contexte d'arrière-plan, seul lecteur et écrivain des notes stockées : `service-worker.js` (vérification de l'expéditeur et routage des messages), `note-requests.js` (traitement des demandes de consultation et des écritures : création, modification, suppression) et `note-write-pipeline.js` (chemin d'écriture commun : URL normalisée, activation revérifiée, traduction des échecs)
+- `service-worker/` — contexte d'arrière-plan, seul lecteur et écrivain des notes stockées : `service-worker.js` (vérification de l'expéditeur, routage des messages et reprise des notes héritées), `note-requests.js` (traitement des demandes de consultation et des écritures : création, modification, suppression), `note-write-pipeline.js` (chemin d'écriture commun : domaine du site, activation revérifiée, traduction des échecs) et `notes-migration.js` (reprise unique des anciennes clés « une clé par page » vers « une clé par domaine »)
 - `shared/` — code partagé entre les contextes (`activation-state.js`, `url.js`, `note.js`, `note-image.js` (image facultative d'une note : types acceptés, poids maximal, validation), `notes-store.js`, `notes-messages.js`)
 - `assets/icons/` — icônes de l'extension
 
@@ -50,12 +50,12 @@ J'essaie de créer des extensions pour navigateur aléatoiremet, du coup, si tu 
 
 ## Données
 
-- Les notes sont conservées dans `chrome.storage.local`, une clé par site : `notes:<URL normalisée>` → tableau de notes.
-- Forme d'une note : `{ id, url, content, image, createdAt, updatedAt }` — `image` vaut `null` (aucune image), est absente des notes créées avant cette version, ou contient une URL de données `data:image/…;base64,…` (une seule image par note).
-- Images : seuls PNG, JPEG, GIF et WebP sont acceptés, dans la limite de 1 Mo par image (`MAX_NOTE_IMAGE_BYTES`) ; un SVG est refusé (il peut embarquer du script). L'image est conservée dans la note elle-même, en URL de données : la consultation d'un site reste la lecture d'une seule clé, et le quota de `chrome.storage.local` (~5 Mo) peut donc être atteint plus vite — un enregistrement refusé est signalé sans perte du texte saisi.
+- Les notes sont conservées dans `chrome.storage.local`, une clé par **domaine** : `notes:<hôte>` → tableau de notes. Toutes les pages d'un même domaine (`exemple.fr/accueil`, `exemple.fr/articles?tri=date`) partagent les mêmes notes ; les anciennes clés « une clé par URL de page » sont reprises automatiquement au démarrage de l'arrière-plan (`service-worker/notes-migration.js`, ADR-009).
+- Forme d'une note : `{ id, site, content, image, createdAt, updatedAt }` — `site` porte le domaine (`exemple.fr`) ; `image` vaut `null` (aucune image), est absente des notes créées avant cette version, ou contient une URL de données `data:image/…;base64,…` (une seule image par note).
+- Images : seuls PNG, JPEG, GIF et WebP sont acceptés, dans la limite de 1 Mo par image (`MAX_NOTE_IMAGE_BYTES`) ; un SVG est refusé (il peut embarquer du script). L'image est conservée dans la note elle-même, en URL de données : la consultation d'un domaine reste la lecture d'une seule clé, et le quota de `chrome.storage.local` (~5 Mo) peut donc être atteint plus vite — un enregistrement refusé est signalé sans perte du texte saisi.
 - Création : l'identifiant (`crypto.randomUUID()`) et les dates sont produits par le contexte d'arrière-plan ; le texte est enregistré sans ses espaces de bord, dans la limite de 5000 caractères (`MAX_NOTE_LENGTH`).
-- Modification : seul le contenu de la note visée est réécrit (l'identifiant, l'URL et la date de création sont conservés) ; la date de modification (`updatedAt`) est mise à jour par le contexte d'arrière-plan. Les autres notes du site, y compris celles dont la forme est invalide, restent intactes.
-- Suppression : seule la note visée est retirée ; quand c'était la dernière note du site, la clé `notes:<URL>` est supprimée (le site n'est plus stocké).
-- Normalisation d'URL : seules les pages `http`/`https` portent des notes, le fragment (`#…`) est ignoré, la requête (`?…`) est conservée (voir `shared/url.js`).
+- Modification : seul le contenu de la note visée est réécrit (l'identifiant, le domaine et la date de création sont conservés) ; la date de modification (`updatedAt`) est mise à jour par le contexte d'arrière-plan. Les autres notes du domaine, y compris celles dont la forme est invalide, restent intactes.
+- Suppression : seule la note visée est retirée ; quand c'était la dernière note du domaine, la clé `notes:<hôte>` est supprimée (le domaine n'est plus stocké).
+- Normalisation : seules les pages `http`/`https` portent des notes ; la clé du site est le seul hôte de l'URL (`exemple.fr`) — chemin, requête (`?…`) et fragment (`#…`) sont ignorés, `www.example.com` et `example.com` restent distincts (voir `shared/url.js`).
 - Rien n'est envoyé sur le réseau : les notes restent sur l'appareil.
 

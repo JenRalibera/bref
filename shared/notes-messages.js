@@ -4,9 +4,11 @@
  * La popup ne fait que demander ; le contexte d'arrière-plan lit ou écrit le
  * stockage et répond. Types connus :
  *
- * - `VIEW_NOTES_REQUEST`  : `{ type, url }` — URL brute de l'onglet actif.
- * - `VIEW_NOTES_RESULT`   : `{ type, ok: true, siteUrl, notes }` en cas de
- *   succès, sinon `{ type, ok: false, reason }`.
+ * - `VIEW_NOTES_REQUEST`  : `{ type, url }` — URL brute de l'onglet actif ; le
+ *   contexte d'arrière-plan en déduit le domaine du site (voir `shared/url.js`).
+ * - `VIEW_NOTES_RESULT`   : `{ type, ok: true, site, notes }` en cas de succès
+ *   (`site` est le domaine du site, ex. `exemple.fr`), sinon
+ *   `{ type, ok: false, reason }`.
  * - `CREATE_NOTE_REQUEST` : `{ type, url, content, image? }` — `image` est une
  *   URL de données facultative (voir `shared/note-image.js`), absente ou
  *   `null` pour une note sans image.

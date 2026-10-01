@@ -86,7 +86,7 @@ function isViewNotesResult(value) {
   }
 
   if (value.ok === true) {
-    return typeof value.siteUrl === "string" && Array.isArray(value.notes);
+    return typeof value.site === "string" && Array.isArray(value.notes);
   }
 
   return value.ok === false && typeof value.reason === "string";
@@ -108,7 +108,7 @@ function isWriteNoteResult(value, expectedType) {
 /**
  * Demande les notes du site de l'onglet actif.
  *
- * @returns {Promise<{ ok: true, siteUrl: string, notes: object[] } | { ok: false, reason: string }>}
+ * @returns {Promise<{ ok: true, site: string, notes: object[] } | { ok: false, reason: string }>}
  */
 export async function requestNotesForActiveTab() {
   const sent = await sendRequestForActiveTab({ type: MESSAGE_TYPE.VIEW_NOTES_REQUEST });
@@ -126,7 +126,7 @@ export async function requestNotesForActiveTab() {
     return { ok: false, reason: result.reason };
   }
 
-  return { ok: true, siteUrl: result.siteUrl, notes: result.notes };
+  return { ok: true, site: result.site, notes: result.notes };
 }
 
 /**
