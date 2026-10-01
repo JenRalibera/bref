@@ -5,12 +5,15 @@
  *
  *   {
  *     id: string,        // identifiant stable de la note
- *     url: string,       // URL normalisée du site auquel elle appartient
+ *     site: string,      // domaine du site auquel elle appartient (voir `shared/url.js`)
  *     content: string,   // contenu rédigé par l'utilisateur
  *     image: string|null // image facultative (URL de données, voir `note-image.js`)
  *     createdAt: string, // date ISO 8601 de création
  *     updatedAt: string  // date ISO 8601 de dernière modification
  *   }
+ *
+ * Une note appartient à un **domaine**, pas à une page : le champ `site` porte
+ * la clé du site (`example.com`), pas l'URL de la page où la note a été créée.
  *
  * L'image est facultative : une note sans image ne porte pas la clé `image`
  * (notes créées avant l'ajout des images), ou la porte avec la valeur `null`.
@@ -38,7 +41,7 @@ export function isValidNote(value) {
     typeof value === "object" &&
     value !== null &&
     isNonEmptyString(value.id) &&
-    typeof value.url === "string" &&
+    typeof value.site === "string" &&
     typeof value.content === "string" &&
     (value.image === undefined || isValidNoteImage(value.image)) &&
     isIsoDate(value.createdAt) &&
@@ -83,18 +86,18 @@ export function normalizeNoteContent(value) {
  * L'identifiant et les dates sont produits ici, jamais par l'appelant, pour
  * qu'une note enregistrée respecte toujours `isValidNote`.
  *
- * @param {string} siteUrl URL normalisée du site (voir `shared/url.js`).
+ * @param {string} siteKey Domaine du site (voir `normalizeSiteKey`).
  * @param {string} content Contenu déjà validé (voir `normalizeNoteContent`).
  * @param {string | null} [image] Image déjà validée (voir `normalizeNoteImage`) :
  *   `null` (ou absente) pour une note sans image (AC2).
- * @returns {{ id: string, url: string, content: string, image: string | null, createdAt: string, updatedAt: string }}
+ * @returns {{ id: string, site: string, content: string, image: string | null, createdAt: string, updatedAt: string }}
  */
-export function createNote(siteUrl, content, image = null) {
+export function createNote(siteKey, content, image = null) {
   const now = new Date().toISOString();
 
   return {
     id: crypto.randomUUID(),
-    url: siteUrl,
+    site: siteKey,
     content,
     image,
     createdAt: now,
@@ -109,13 +112,13 @@ export function createNote(siteUrl, content, image = null) {
  * date de dernière modification est mise à jour, par ce module, pour qu'une
  * note modifiée respecte toujours `isValidNote`.
  *
- * @param {{ id: string, url: string, content: string, createdAt: string, updatedAt: string }} note
+ * @param {{ id: string, site: string, content: string, createdAt: string, updatedAt: string }} note
  *   Note existante déjà validée (voir `isValidNote`).
  * @param {string} content Nouveau contenu déjà validé (voir `normalizeNoteContent`).
  * @param {string | null} [image] Nouvelle image déjà validée : `undefined`
  *   conserve l'image existante, `null` la retire, une URL de données la
  *   remplace.
- * @returns {{ id: string, url: string, content: string, image: string | null, createdAt: string, updatedAt: string }}
+ * @returns {{ id: string, site: string, content: string, image: string | null, createdAt: string, updatedAt: string }}
  */
 export function updateNoteContent(note, content, image = undefined) {
   return {

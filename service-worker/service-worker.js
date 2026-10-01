@@ -14,6 +14,9 @@
  * Ce fichier est déclaré à la fois en `background.service_worker` (Chrome) et
  * en `background.scripts` (Firefox, ADR-004) : il n'utilise donc que les API
  * `chrome.*` et aucun objet DOM.
+ *
+ * Au démarrage, les notes héritées du modèle « une clé par page » sont reprises
+ * dans les clés par domaine (ADR-009, `notes-migration.js`).
  */
 
 import {
@@ -33,6 +36,7 @@ import {
   handleUpdateNoteRequest,
   handleViewNotesRequest,
 } from "./note-requests.js";
+import { migrateNotesToSiteKeys } from "./notes-migration.js";
 
 /**
  * @param {chrome.runtime.MessageSender} sender
@@ -101,4 +105,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
 
   return true; // la réponse est asynchrone : garder le canal ouvert.
+});
+
+/**
+ * Reprise des notes héritées « une clé par page » vers « une clé par domaine ».
+ *
+ * Lancée à chaque démarrage du contexte d'arrière-plan : le contrôle de version
+ * se limite à la lecture d'une clé, donc au pire une lecture négligeable, et
+ * l'opération ne travaille que si des clés héritées existent encore (règle 11).
+ * Un échec est signalé sans interrompre le service : les notes héritées restent
+ * lisibles telles quelles et la reprise sera retentée au démarrage suivant.
+ */
+void migrateNotesToSiteKeys().catch((error) => {
+  console.warn("Bref : reprise des notes héritées impossible, elle sera retentée au démarrage suivant.", error);
 });

@@ -1,9 +1,13 @@
 /*
  * notes-store.js — accès au stockage des notes (`chrome.storage.local`).
  *
- * Les notes sont réparties en une clé par site : `notes:<URL normalisée>`. La
- * consultation du site courant ne lit donc qu'une seule clé, jamais la totalité
- * des notes (règle 09).
+ * Les notes sont réparties en une clé par **domaine** : `notes:<hôte>`. Toutes
+ * les pages d'un même site partagent donc la même clé, et la consultation du
+ * site courant ne lit qu'une seule clé, jamais la totalité des notes (règle 09).
+ *
+ * Les clés héritées de l'ancien modèle (une clé par URL de page,
+ * `notes:https://…`) sont reprises une fois au démarrage par
+ * `service-worker/notes-migration.js` (ADR-009).
  *
  * Ce module est destiné au service worker : la popup ne touche pas au stockage
  * des notes, elle passe par un message (règle 06).
@@ -14,11 +18,11 @@ import { isValidNote, updateNoteContent } from "./note.js";
 export const NOTES_STORAGE_KEY_PREFIX = "notes:";
 
 /**
- * @param {string} normalizedUrl URL normalisée (voir `shared/url.js`).
+ * @param {string} siteKey Domaine du site (voir `normalizeSiteKey`).
  * @returns {string} clé de stockage des notes d'un site.
  */
-export function buildNotesStorageKey(normalizedUrl) {
-  return `${NOTES_STORAGE_KEY_PREFIX}${normalizedUrl}`;
+export function buildNotesStorageKey(siteKey) {
+  return `${NOTES_STORAGE_KEY_PREFIX}${siteKey}`;
 }
 
 /**
@@ -27,11 +31,11 @@ export function buildNotesStorageKey(normalizedUrl) {
  * Les entrées qui ne respectent pas la forme d'une note sont ignorées et
  * signalées : elles restent dans le stockage mais ne sont pas affichées.
  *
- * @param {string} normalizedUrl
+ * @param {string} siteKey
  * @returns {Promise<object[]>} les notes valides du site, éventuellement vide.
  */
-export async function readNotesForUrl(normalizedUrl) {
-  const storageKey = buildNotesStorageKey(normalizedUrl);
+export async function readNotesForSite(siteKey) {
+  const storageKey = buildNotesStorageKey(siteKey);
   const stored = await chrome.storage.local.get(storageKey);
   const storedNotes = stored[storageKey];
 
@@ -77,23 +81,23 @@ export class NotesStoreNoteNotFoundError extends Error {}
  * Les entrées existantes sont conservées telles quelles, y compris celles qui
  * ne respectent pas la forme d'une note : elles ne sont jamais réécrites.
  *
- * @param {string} normalizedUrl
+ * @param {string} siteKey
  * @param {object} note Note valide (voir `shared/note.js`).
  * @returns {Promise<void>}
  * @throws {TypeError} si la note à enregistrer n'est pas valide.
  * @throws {NotesStoreConflictError} si la valeur stockée n'est pas un tableau.
  */
-export async function addNoteForUrl(normalizedUrl, note) {
+export async function addNoteForSite(siteKey, note) {
   if (!isValidNote(note)) {
-    throw new TypeError("addNoteForUrl attend une note valide.");
+    throw new TypeError("addNoteForSite attend une note valide.");
   }
 
-  const storageKey = buildNotesStorageKey(normalizedUrl);
+  const storageKey = buildNotesStorageKey(siteKey);
   const stored = await chrome.storage.local.get(storageKey);
   const storedNotes = stored[storageKey];
 
   if (storedNotes !== undefined && !Array.isArray(storedNotes)) {
-    throw new NotesStoreConflictError("addNoteForUrl : la valeur stockée n'est pas un tableau de notes.");
+    throw new NotesStoreConflictError("addNoteForSite : la valeur stockée n'est pas un tableau de notes.");
   }
 
   const notes = Array.isArray(storedNotes) ? storedNotes : [];
@@ -108,7 +112,7 @@ export async function addNoteForUrl(normalizedUrl, note) {
  * entrées du site sont conservées telles quelles, y compris celles qui ne
  * respectent pas la forme d'une note (règle 09).
  *
- * @param {string} normalizedUrl
+ * @param {string} siteKey
  * @param {string} noteId Identifiant de la note à modifier.
  * @param {string} content Nouveau contenu déjà validé (voir `normalizeNoteContent`).
  * @param {string | null} [image] Nouvelle image déjà validée : `undefined`
@@ -119,20 +123,20 @@ export async function addNoteForUrl(normalizedUrl, note) {
  * @throws {NotesStoreNoteNotFoundError} si aucune note du site ne porte cet
  *   identifiant.
  */
-export async function updateNoteForUrl(normalizedUrl, noteId, content, image = undefined) {
-  const storageKey = buildNotesStorageKey(normalizedUrl);
+export async function updateNoteForSite(siteKey, noteId, content, image = undefined) {
+  const storageKey = buildNotesStorageKey(siteKey);
   const stored = await chrome.storage.local.get(storageKey);
   const storedNotes = stored[storageKey];
 
   if (storedNotes !== undefined && !Array.isArray(storedNotes)) {
-    throw new NotesStoreConflictError("updateNoteForUrl : la valeur stockée n'est pas un tableau de notes.");
+    throw new NotesStoreConflictError("updateNoteForSite : la valeur stockée n'est pas un tableau de notes.");
   }
 
   const notes = Array.isArray(storedNotes) ? storedNotes : [];
   const noteIndex = notes.findIndex((note) => isValidNote(note) && note.id === noteId);
 
   if (noteIndex === -1) {
-    throw new NotesStoreNoteNotFoundError("updateNoteForUrl : aucune note ne porte cet identifiant.");
+    throw new NotesStoreNoteNotFoundError("updateNoteForSite : aucune note ne porte cet identifiant.");
   }
 
   const updatedNotes = [...notes];
@@ -150,27 +154,27 @@ export async function updateNoteForUrl(normalizedUrl, noteId, content, image = u
  * stockage est retirée : un site sans note n'existe pas, la vue globale des
  * sites reste donc exacte (AC4).
  *
- * @param {string} normalizedUrl
+ * @param {string} siteKey
  * @param {string} noteId Identifiant de la note à supprimer.
  * @returns {Promise<void>}
  * @throws {NotesStoreConflictError} si la valeur stockée n'est pas un tableau.
  * @throws {NotesStoreNoteNotFoundError} si aucune note du site ne porte cet
  *   identifiant.
  */
-export async function removeNoteForUrl(normalizedUrl, noteId) {
-  const storageKey = buildNotesStorageKey(normalizedUrl);
+export async function removeNoteForSite(siteKey, noteId) {
+  const storageKey = buildNotesStorageKey(siteKey);
   const stored = await chrome.storage.local.get(storageKey);
   const storedNotes = stored[storageKey];
 
   if (storedNotes !== undefined && !Array.isArray(storedNotes)) {
-    throw new NotesStoreConflictError("removeNoteForUrl : la valeur stockée n'est pas un tableau de notes.");
+    throw new NotesStoreConflictError("removeNoteForSite : la valeur stockée n'est pas un tableau de notes.");
   }
 
   const notes = Array.isArray(storedNotes) ? storedNotes : [];
   const noteIndex = notes.findIndex((note) => isValidNote(note) && note.id === noteId);
 
   if (noteIndex === -1) {
-    throw new NotesStoreNoteNotFoundError("removeNoteForUrl : aucune note ne porte cet identifiant.");
+    throw new NotesStoreNoteNotFoundError("removeNoteForSite : aucune note ne porte cet identifiant.");
   }
 
   const remainingNotes = notes.toSpliced(noteIndex, 1);
