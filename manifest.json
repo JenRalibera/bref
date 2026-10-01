@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Bref",
+  "description": "Créez et gérez des notes associées aux sites web, par URL.",
+  "version": "0.7.0",
+  "icons": {
+    "16": "assets/icons/bref.jpeg",
+    "32": "assets/icons/bref.jpeg",
+    "48": "assets/icons/bref.jpeg",
+    "128": "assets/icons/bref.jpeg"
+  },
+  "permissions": ["storage", "activeTab"],
+  "background": {
+    "scripts": ["service-worker/service-worker.js"],
+    "service_worker": "service-worker/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Bref — Notes du site",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/bref.jpeg",
+      "32": "assets/icons/bref.jpeg",
+      "48": "assets/icons/bref.jpeg",
+      "128": "assets/icons/bref.jpeg"
+    }
+  }
+}
