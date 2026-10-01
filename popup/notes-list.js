@@ -60,7 +60,7 @@ export function createNotesList({ elements, noteEditor, deleteConfirmation }) {
       return;
     }
 
-    displayedSiteHost = renderNotes(elements, result.siteUrl, result.notes.filter(isValidNote), {
+    displayedSiteHost = renderNotes(elements, result.site, result.notes.filter(isValidNote), {
       message,
       canEdit: isEnabled,
       onEdit: noteEditor === null ? null : openEdit,

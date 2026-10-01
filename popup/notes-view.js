@@ -36,7 +36,7 @@ export function renderLoading(elements) {
  * Affiche les notes d'un site.
  *
  * @param {{ site: HTMLElement, message: HTMLElement, list: HTMLElement }} elements
- * @param {string} siteUrl URL normalisée du site.
+ * @param {string} site Domaine du site (voir `normalizeSiteKey`).
  * @param {object[]} notes Notes déjà validées (voir `shared/note.js`).
  * @param {{ message?: { text: string, state: string } | null, canEdit?: boolean, onEdit?: ((note: object, trigger: HTMLButtonElement) => void) | null, onDelete?: ((note: object, trigger: HTMLButtonElement) => void) | null }} options
  *   `message` remplace le décompte des notes en cas de succès — y compris sur
@@ -47,11 +47,11 @@ export function renderLoading(elements) {
  */
 export function renderNotes(
   elements,
-  siteUrl,
+  site,
   notes,
   { message = null, canEdit = false, onEdit = null, onDelete = null } = {}
 ) {
-  const host = setSiteLabel(elements, siteUrl);
+  const host = setSiteLabel(elements, site);
 
   if (notes.length === 0) {
     clearNotes(elements);
@@ -119,28 +119,16 @@ function clearNotes(elements) {
 
 /**
  * @param {{ site: HTMLElement }} elements
- * @param {string | null} siteUrl
+ * @param {string | null} site Domaine du site (déjà normalisé), ou `null`.
  * @returns {string | null} l'hôte affiché, ou `null` si le site est inconnu.
  */
-function setSiteLabel(elements, siteUrl) {
-  const host = formatHost(siteUrl);
+function setSiteLabel(elements, site) {
+  const host = typeof site === "string" && site.length > 0 ? site : null;
 
   elements.site.hidden = host === null;
   elements.site.textContent = host === null ? "" : `${NOTES_SITE_LABEL_PREFIX}${host}`;
 
   return host;
-}
-
-function formatHost(siteUrl) {
-  if (typeof siteUrl !== "string") {
-    return null;
-  }
-
-  try {
-    return new URL(siteUrl).host;
-  } catch {
-    return null;
-  }
 }
 
 function formatNoteCount(count) {

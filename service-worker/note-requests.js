@@ -5,8 +5,12 @@
  * puis lire ou écrire les notes stockées. Rien de ce que la popup envoie n'est
  * considéré comme fiable (règle 07) : chaque demande décrit ici sa propre
  * validation, et les écritures passent par le chemin commun de
- * `note-write-pipeline.js` (URL normalisée, état d'activation, échecs du
+ * `note-write-pipeline.js` (domaine du site, état d'activation, échecs du
  * stockage).
+ *
+ * Les notes sont rattachées au **domaine** du site (voir `shared/url.js`) : la
+ * popup envoie l'URL complète de l'onglet actif, l'arrière-plan en déduit le
+ * domaine et travaille sur la clé `notes:<domaine>`.
  *
  * Le routage des messages et la vérification de l'expéditeur appartiennent à
  * `service-worker.js` ; ce module ne contient que le traitement d'une demande.
@@ -23,8 +27,8 @@ import {
   NOTES_EDIT_FAILURE,
   NOTES_VIEW_FAILURE,
 } from "../shared/notes-messages.js";
-import { addNoteForUrl, readNotesForUrl, removeNoteForUrl, updateNoteForUrl } from "../shared/notes-store.js";
-import { normalizeUrl } from "../shared/url.js";
+import { addNoteForSite, readNotesForSite, removeNoteForSite, updateNoteForSite } from "../shared/notes-store.js";
+import { normalizeSiteKey } from "../shared/url.js";
 import { buildWriteFailure, writeNoteForSite } from "./note-write-pipeline.js";
 
 /**
@@ -75,14 +79,14 @@ async function handleViewNotesRequest(message) {
     return buildViewFailure(NOTES_VIEW_FAILURE.INVALID_REQUEST);
   }
 
-  const siteUrl = normalizeUrl(message.url);
-  if (siteUrl === null) {
+  const siteKey = normalizeSiteKey(message.url);
+  if (siteKey === null) {
     return buildViewFailure(NOTES_VIEW_FAILURE.UNSUPPORTED_PAGE);
   }
 
   try {
-    const notes = await readNotesForUrl(siteUrl);
-    return { type: MESSAGE_TYPE.VIEW_NOTES_RESULT, ok: true, siteUrl, notes };
+    const notes = await readNotesForSite(siteKey);
+    return { type: MESSAGE_TYPE.VIEW_NOTES_RESULT, ok: true, site: siteKey, notes };
   } catch (error) {
     console.error("Bref : lecture des notes du site impossible.", error);
     return buildViewFailure(NOTES_VIEW_FAILURE.READ_FAILED);
@@ -118,8 +122,8 @@ async function handleCreateNoteRequest(message) {
     return buildCreateFailure(NOTES_CREATE_FAILURE.INVALID_IMAGE);
   }
 
-  return writeNoteForSite(WRITE_OPERATIONS.CREATE, message.url, (siteUrl) =>
-    addNoteForUrl(siteUrl, createNote(siteUrl, content, image.image))
+  return writeNoteForSite(WRITE_OPERATIONS.CREATE, message.url, (siteKey) =>
+    addNoteForSite(siteKey, createNote(siteKey, content, image.image))
   );
 }
 
@@ -153,8 +157,8 @@ async function handleUpdateNoteRequest(message) {
     return buildEditFailure(NOTES_EDIT_FAILURE.INVALID_IMAGE);
   }
 
-  return writeNoteForSite(WRITE_OPERATIONS.UPDATE, message.url, (siteUrl) =>
-    updateNoteForUrl(siteUrl, message.id, content, message.image === undefined ? undefined : image.image)
+  return writeNoteForSite(WRITE_OPERATIONS.UPDATE, message.url, (siteKey) =>
+    updateNoteForSite(siteKey, message.id, content, message.image === undefined ? undefined : image.image)
   );
 }
 
@@ -173,8 +177,8 @@ async function handleDeleteNoteRequest(message) {
     return buildDeleteFailure(NOTES_DELETE_FAILURE.INVALID_REQUEST);
   }
 
-  return writeNoteForSite(WRITE_OPERATIONS.DELETE, message.url, (siteUrl) =>
-    removeNoteForUrl(siteUrl, message.id)
+  return writeNoteForSite(WRITE_OPERATIONS.DELETE, message.url, (siteKey) =>
+    removeNoteForSite(siteKey, message.id)
   );
 }
 
